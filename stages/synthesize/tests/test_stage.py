@@ -150,3 +150,39 @@ def test_unknown_backend(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     with pytest.raises(SystemExit):
         run_stage(job, config)
     assert "unknown TTS backend 'nope'" in capsys.readouterr().err
+
+
+def bank_job(tmp_path: Path, *, with_bank: bool) -> tuple[Path, Path]:
+    job, config = make_job(tmp_path, ["Olá", "Tudo bem?"])
+    models = tmp_path / "models"
+    doc = read_json(job / "05_speakers" / "speakers.json", "speakers/v1")
+    doc["speakers"].append({"id": "SPK_01", "speech_seconds": 1.0, "gender": "female",
+                            "gender_confidence": 0.9, "strategy": "bank", "voice": "female_02",
+                            "reference": None})  # fmt: skip
+    write_json(job / "05_speakers" / "speakers.json", doc)
+    tr = read_json(job / "06_translate" / "translation.json", "translation/v1")
+    tr["segments"][1]["speaker"] = "SPK_01"
+    write_json(job / "06_translate" / "translation.json", tr)
+    if with_bank:
+        folder = models / "voices" / "pt-BR" / "female"
+        folder.mkdir(parents=True)
+        soundfile.write(str(folder / "02.wav"), np.zeros(24000, dtype=np.float32), 24000)
+        (folder / "02.txt").write_text("frase do banco\n")
+    config.write_text(config.read_text().replace('models_dir = "/m"', f'models_dir = "{models}"'))
+    return job, config
+
+
+def test_bank_voice_is_cloned_like_a_reference(tmp_path: Path) -> None:
+    job, config = bank_job(tmp_path, with_bank=True)
+    run_stage(job, config)
+    assert CALLS == ["load", "voice:SPK_00.wav", "say:Olá", "voice:02.wav", "say:Tudo bem?"]
+
+
+def test_missing_bank_voice_says_how_to_fix(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    job, config = bank_job(tmp_path, with_bank=False)
+    with pytest.raises(SystemExit):
+        run_stage(job, config)
+    err = capsys.readouterr().err
+    assert "bank voice female_02 is missing" in err and "dublador setup --only synthesize" in err

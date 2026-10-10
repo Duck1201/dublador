@@ -401,6 +401,11 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 - [ ] BS-RoFormer-1297 vs Mel-RoFormer Kim vs htdemucs_ft em 3 trechos (diálogo+música, diálogo+explosões, multidão): ouvir vazamento de SFX na voz e de voz no fundo; medir VRAM e tempo para 1 h com `--chunk_duration`.
 - [ ] pyannote community-1 na GPU: DER aproximado num trecho anotado à mão (5 min, 3+ falantes); tempo para 1 h.
 - [ ] Classificador de gênero: acurácia por falante em ≥ 20 falantes conhecidos (incluir vozes femininas graves, masculinas agudas, criança).
+- [~] Classificador de gênero no estágio `speakers` (2026-10-10). O ECAPA de `JaesungHuh/voice-gender-classifier` (MIT) foi copiado para o estágio (`ecapa_gender.py`), porque não está no PyPI, e roda na CPU com o torch 2.11 CPU.
+  - Nas 8 vozes do banco, acertou **8 de 8**, com confiança ≥ 0,97.
+  - O F0 mediano das vozes masculinas geradas ficou em 160–190 Hz. Isso está acima do limiar de 145 Hz do desempate, então o F0 só decide vozes graves ou agudas sem ambiguidade.
+  - Ainda falta a acurácia em ≥ 20 falantes reais.
+- [x] Banco de vozes PT-BR (2026-10-10): 4 vozes masculinas e 4 femininas, geradas pelo voice design do OmniVoice no `dublador setup` (cerca de 1 min no total). Descrições e seeds estão em [`voices/README.md`](../voices/README.md).
 
 **Tradução (Ollama)**
 - [x] `ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M` — 2026-10-09: instalado (18 GB). O `ollama show` lista a capability `thinking`, mas na prática a resposta vem sem raciocínio (`thinking` vazio); ~23 tok/s no Vulkan com offload. Opcionais ainda não baixados: `gemma4:26b-a4b-it-qat`, `translategemma:12b`.

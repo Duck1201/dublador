@@ -8,6 +8,7 @@ import pytest
 from stagekit import ContractError, read_json, validate, write_json
 
 SCHEMAS = [
+    "diarization/v1",
     "manifest/v1",
     "speakers/v1",
     "stage-probe/v1",

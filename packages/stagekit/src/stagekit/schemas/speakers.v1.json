@@ -64,7 +64,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "minLength": 1
+                "pattern": "^(male|female)_[0-9]{2,}$"
               },
               {
                 "type": "null"

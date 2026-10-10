@@ -64,7 +64,7 @@ def make_job(tmp_path: Path, url: str) -> tuple[Path, Path]:
         for i in range(1, 4)
     ]
     write_json(
-        job / "03_transcribe" / "transcript.json",
+        job / "04_diarize" / "transcript.json",
         {"schema": "transcript/v1", "language": "en", "segments": segments},
     )
     speakers = {"schema": "speakers/v1", "speakers": [{

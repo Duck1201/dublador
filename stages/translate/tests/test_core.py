@@ -132,3 +132,25 @@ def test_known_translations_are_not_requested() -> None:
 )
 def test_tidy(raw: str, expected: str) -> None:
     assert tidy(raw) == expected
+
+
+def test_genders_reach_the_payload() -> None:
+    from translate.core import with_genders
+
+    lines = [("SPK_00", "Thanks."), ("SPK_01", "Sure."), ("SPK_01", "Tired?")]
+    segs = with_genders(
+        [Segment(f"seg_{i:04d}", i, i + 1, spk, text) for i, (spk, text) in enumerate(lines, 1)],
+        {"SPK_00": "male", "SPK_01": "female"},
+    )
+    assert [(s.speaker_gender, s.listener_gender) for s in segs] == [
+        ("male", "unknown"), ("female", "male"), ("female", "male"),
+    ]  # fmt: skip
+    payload = json.loads(
+        build_messages(segs[1:2], [], [], source="en", target="pt-BR")[1]["content"]
+    )
+    line = payload["translate"][0]
+    assert line["speaker_gender"] == "female" and line["listener_gender"] == "male"
+    unknown = json.loads(
+        build_messages(segs[:1], [], [], source="en", target="pt-BR")[1]["content"]
+    )
+    assert "listener_gender" not in unknown["translate"][0]

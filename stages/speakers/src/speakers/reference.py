@@ -127,3 +127,29 @@ def best_reference(
             best = max(found, key=lambda c: score(c, vocals, accompaniment, sr, target_seconds))
             return best, warning
     return None, f"{speaker}: no clip of {fallback_min_seconds:g}s or more; needs a bank voice"
+
+
+def clean_clips(
+    segments: Sequence[dict[str, Any]],
+    vocals: np.ndarray,
+    accompaniment: np.ndarray,
+    sr: int,
+    *,
+    speaker: str,
+    count: int,
+    min_seconds: float,
+    max_seconds: float,
+    max_gap: float,
+) -> list[Candidate]:
+    """Up to `count` non-overlapping clean clips of a speaker, best first (for gender)."""
+    own = [s for s in segments if speaker_of(s) == speaker]
+    found = candidates(own, min_seconds=min_seconds, max_seconds=max_seconds, max_gap=max_gap)
+    target = (min_seconds + max_seconds) / 2
+    ranked = sorted(found, key=lambda c: score(c, vocals, accompaniment, sr, target), reverse=True)
+    chosen: list[Candidate] = []
+    for cand in ranked:
+        if all(cand.end <= c.start or cand.start >= c.end for c in chosen):
+            chosen.append(cand)
+            if len(chosen) == count:
+                break
+    return chosen

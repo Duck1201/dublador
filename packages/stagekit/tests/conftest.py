@@ -32,17 +32,38 @@ EXAMPLES: dict[str, dict[str, Any]] = {
             {
                 "id": "SPK_00",
                 "speech_seconds": 42.0,
-                "gender": "unknown",
-                "gender_confidence": None,
+                "gender": "male",
+                "gender_confidence": 0.93,
                 "strategy": "clone",
                 "voice": None,
                 "reference": {
                     "path": "05_speakers/refs/SPK_00.wav",
                     "start": 3.0,
-                    "end": 12.5,
+                    "end": 6.5,
                     "text": "Reference text.",
                 },
-            }
+            },
+            {
+                "id": "SPK_01",
+                "speech_seconds": 1.5,
+                "gender": "unknown",
+                "gender_confidence": None,
+                "strategy": "bank",
+                "voice": "female_01",
+                "reference": None,
+            },
+        ],
+    },
+    "diarization/v1": {
+        "schema": "diarization/v1",
+        "model": "pyannote/speaker-diarization-community-1",
+        "turns": [
+            {"speaker": "SPK_00", "start": 0.4, "end": 12.0},
+            {"speaker": "SPK_01", "start": 12.3, "end": 13.8},
+        ],
+        "speakers": [
+            {"id": "SPK_00", "speech_seconds": 11.6},
+            {"id": "SPK_01", "speech_seconds": 1.5},
         ],
     },
     "translation/v1": {

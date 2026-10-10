@@ -15,9 +15,9 @@ from stagekit import StageContext, StageError, atomic_path, main, read_json, wri
 from stagekit.gpu import wait_for_vram
 from stagekit.probe import report
 
-from synthesize import backends
+from synthesize import backends, voicebank
 from synthesize.audio import trim_silence
-from synthesize.plan import jobs, max_seconds, ran_away, split, voices
+from synthesize.plan import MissingBankVoice, jobs, max_seconds, ran_away, split, voices
 
 VERSION = metadata.version("dublador-stage-synthesize")
 DEFAULTS: dict[str, Any] = {
@@ -69,12 +69,17 @@ def run(ctx: StageContext) -> None:
     except ValueError as e:
         raise StageError(str(e)) from e
 
-    by_speaker = voices(speakers, ctx.job_dir)
+    models_dir = Path(ctx.config["paths"]["models_dir"])
+    try:
+        by_speaker = voices(speakers, ctx.job_dir, models_dir)
+    except MissingBankVoice as e:
+        raise StageError(
+            f"bank voice {e} is missing from {voicebank.bank_dir(models_dir)};"
+            " run `dublador setup --only synthesize`"
+        ) from e
     missing = sorted({s["speaker"] for s in translation["segments"]} - set(by_speaker))
     if missing:
-        raise StageError(
-            f"no voice reference for {', '.join(missing)} (the voice bank arrives in M2)"
-        )
+        raise StageError(f"no voice reference or bank voice for {', '.join(missing)}")
 
     all_jobs = jobs(translation, by_speaker, {"backend": backend.name, **backend.settings()})
     out_path = ctx.out_dir / "synthesis.json"
@@ -140,7 +145,17 @@ def run(ctx: StageContext) -> None:
 
 def prefetch(config: dict[str, Any]) -> None:
     opts, backend_opts = settings(config)
-    backends.backend_class(opts["backend"]).prefetch(backend_opts)
+    cls = backends.backend_class(opts["backend"])
+    cls.prefetch(backend_opts)
+    models_dir = Path(config["paths"]["models_dir"])
+    if not voicebank.missing(models_dir) or not hasattr(cls, "design_voice"):
+        return
+    target = config.get("languages", {}).get("target", "pt-BR")
+    backend = backends.create(
+        opts["backend"], backend_opts, language=target, models_dir=str(models_dir)
+    )
+    backend.load()
+    voicebank.build(models_dir, backend.design_voice)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def probe() -> dict[str, Any]:

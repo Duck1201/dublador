@@ -20,6 +20,7 @@ from translate.core import (
     TranslationError,
     input_hash,
     translate_all,
+    with_genders,
 )
 from translate.ollama import Ollama, OllamaError
 
@@ -58,14 +59,18 @@ def run(ctx: StageContext) -> None:
     opts = settings(ctx.config)
     languages = ctx.config.get("languages", {})
     source, target = languages.get("source", "en"), languages.get("target", "pt-BR")
-    transcript = read_json(ctx.stage_dir("transcribe") / "transcript.json", "transcript/v1")
+    transcript = read_json(ctx.stage_dir("diarize") / "transcript.json", "transcript/v1")
     speakers = read_json(ctx.stage_dir("speakers") / "speakers.json", "speakers/v1")
     default_speaker = speakers["speakers"][0]["id"] if speakers["speakers"] else "SPK_00"
 
-    segments = [
-        Segment(s["id"], s["start"], s["end"], s.get("speaker") or default_speaker, s["text"])
-        for s in transcript["segments"]
-    ]
+    genders = {spk["id"]: spk["gender"] for spk in speakers["speakers"]}
+    segments = with_genders(
+        [
+            Segment(s["id"], s["start"], s["end"], s.get("speaker") or default_speaker, s["text"])
+            for s in transcript["segments"]
+        ],
+        genders,
+    )
     hashes = {
         s.id: input_hash(s, model=opts["model"], source=source, target=target) for s in segments
     }

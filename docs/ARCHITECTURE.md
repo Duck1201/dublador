@@ -60,13 +60,17 @@ Separa a voz (`vocals`) do restante (`accompaniment`: música, efeitos, ambiente
 ASR em inglês sobre `vocals.wav`, com **timestamps por palavra** (necessários para alinhar falantes e montar legendas). Remove segmentos suspeitos de alucinação (texto em trechos de silêncio, repetições).
 
 ### 04 — diarize
-Determina **quem fala quando** e atribui um `speaker` (`SPK_00`, `SPK_01`…) a cada segmento, cortando segmentos que atravessam troca de falante com base nos timestamps por palavra.
+Determina **quem fala quando** com o pyannote `speaker-diarization-community-1`, na versão sem sobreposição de fala (*exclusive*). Cada **palavra** vai para o turno que mais a cobre, e o segmento é cortado onde o falante muda; os ids são renumerados. Falantes com menos de `min_speaker_seconds` de fala são fundidos no vizinho mais próximo, e os rótulos viram `SPK_00`, `SPK_01`… por ordem de entrada. `num_speakers`, `min_speakers` e `max_speakers` (ou `dublador run --num-speakers`) forçam a contagem.
+
+Saídas: `04_diarize/diarization.json` (`diarization/v1`) e `04_diarize/transcript.json`, o mesmo `transcript/v1` com `speaker` preenchido, que é o que o `speakers` e o `translate` leem.
+
+O modelo é de acesso restrito no Hugging Face: aceite os termos e faça login uma vez (com o `HF_HOME` em `<models_dir>/hf`). O `dublador setup` baixa o modelo, e as execuções seguintes são offline. Na GPU, o caminho do MIOpen para RNNs fica desligado (`torch.backends.cudnn.enabled = False`), porque o MIOpen não compila o LSTM da segmentação na gfx1102.
 
 ### 05 — speakers
 Para cada falante:
 - calcula o tempo total de fala e escolhe o **melhor trecho de referência** para clonagem (3–4,5 s cortados em fronteira de palavra, [ADR-0017](adr/0017-tts-omnivoice-e-referencia-curta.md); fala contínua, sem sobreposição, sem música residual), guardando também a transcrição exata do trecho (alguns TTS a exigem);
-- classifica o **gênero por falante**, agregando (votação) as predições de vários segmentos, com nível de confiança — nunca segmento a segmento;
-- decide a estratégia de voz: `clone` se houver referência boa o bastante, senão `bank:<voz>` do banco de vozes por gênero. ([ADR-0002](adr/0002-vozes-hibridas.md))
+- classifica o **gênero por falante** com o classificador ECAPA (`JaesungHuh/voice-gender-classifier`, na CPU) sobre até 5 trechos limpos de 2–6 s. O voto é ponderado pela duração e gera um nível de confiança; nunca se decide segmento a segmento. Abaixo de `min_gender_confidence`, um F0 mediano claro desempata; senão o gênero fica `unknown`;
+- decide a estratégia de voz: `clone` se houver referência de pelo menos 2 s; senão `bank`, com `voice` = `<gênero>_NN` do banco de vozes ([`voices/README.md`](../voices/README.md)), estável por falante e sem repetir voz no mesmo vídeo. ([ADR-0002](adr/0002-vozes-hibridas.md))
 
 ### 06 — translate
 Tradução EN→PT-BR por LLM local via Ollama. O LLM recebe janelas do diálogo (com contexto anterior/posterior e falantes) e, para cada segmento, a **duração disponível** e um orçamento aproximado de caracteres. Responde em JSON validado contra schema; respostas inválidas são re-solicitadas. O mesmo estágio tem um modo `shorten`, chamado pelo loop de ajuste (abaixo).

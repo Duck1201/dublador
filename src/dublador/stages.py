@@ -102,7 +102,7 @@ _CT2_ROCM = ExtraWheel(
     member="temp-linux/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
 )
 
-# M1 pipeline. diarize and fit join in M2/M3.
+# M2 pipeline. fit joins in M3.
 PIPELINE: tuple[StageSpec, ...] = (
     StageSpec(
         "extract",
@@ -127,14 +127,20 @@ PIPELINE: tuple[StageSpec, ...] = (
         extra_wheels=(_CT2_ROCM,),
     ),
     StageSpec(
+        "diarize",
+        inputs=(f"{_SEP}/vocals.wav", "03_transcribe/transcript.json"),
+        outputs=("04_diarize/diarization.json", "04_diarize/transcript.json"),
+        module="diarize",
+    ),
+    StageSpec(
         "speakers",
-        inputs=(f"{_SEP}/vocals.wav", f"{_SEP}/accompaniment.wav", "03_transcribe/transcript.json"),
+        inputs=(f"{_SEP}/vocals.wav", f"{_SEP}/accompaniment.wav", "04_diarize/transcript.json"),
         outputs=("05_speakers/speakers.json",),
         module="speakers",
     ),
     StageSpec(
         "translate",
-        inputs=("03_transcribe/transcript.json", "05_speakers/speakers.json"),
+        inputs=("04_diarize/transcript.json", "05_speakers/speakers.json"),
         outputs=("06_translate/translation.json",),
         config_sections=("translate", "languages"),
         module="translate",

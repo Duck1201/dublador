@@ -3,12 +3,12 @@
 import json
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from stagekit import hash_value
 
-PROMPT_VERSION = "v0.3"
+PROMPT_VERSION = "v0.4"
 CHARS_PER_SECOND = 15  # rough pt-BR speaking rate; calibrated per TTS in M3
 
 RESPONSE_SCHEMA: dict[str, Any] = {
@@ -33,6 +33,8 @@ Rules:
 - Keep the meaning, tone and register of each line. Do not add explanations or notes.
 - Use normal capitalization and punctuation, even when the source line lacks them.
 - Keep names, brands and technical terms that people say in English.
+- Make gendered words agree with the speaker ("speaker_gender": obrigado/obrigada,
+  cansado/cansada) and with the person spoken to ("listener_gender"), when given.
 - Each line is dubbed over the original timing: keep it about as short as the original,
   never longer than its "max_chars".
 - Translate only the lines in "translate"; the context lines are for reference.
@@ -53,12 +55,30 @@ class Segment:
     end: float
     speaker: str
     text: str
+    speaker_gender: str = "unknown"
+    listener_gender: str = "unknown"
+
+
+def with_genders(segments: Sequence[Segment], genders: dict[str, str]) -> list[Segment]:
+    """Fill in who speaks and who is spoken to: the last other speaker before each line."""
+    out, last_other, previous = [], "unknown", None
+    for seg in segments:
+        if previous is not None and previous != seg.speaker:
+            last_other = genders.get(previous, "unknown")
+        out.append(
+            replace(
+                seg, speaker_gender=genders.get(seg.speaker, "unknown"), listener_gender=last_other
+            )
+        )
+        previous = seg.speaker
+    return out
 
 
 def input_hash(seg: Segment, *, model: str, source: str, target: str) -> str:
     return hash_value(
         {
             "text": seg.text,
+            "genders": [seg.speaker_gender, seg.listener_gender],
             "model": model,
             "source": source,
             "target": target,
@@ -69,13 +89,12 @@ def input_hash(seg: Segment, *, model: str, source: str, target: str) -> str:
 
 def _line(seg: Segment) -> dict[str, Any]:
     seconds = round(seg.end - seg.start, 1)
-    return {
-        "id": seg.id,
-        "speaker": seg.speaker,
-        "seconds": seconds,
-        "max_chars": max(8, int(seconds * CHARS_PER_SECOND)),
-        "text": seg.text,
-    }
+    line: dict[str, Any] = {"id": seg.id, "speaker": seg.speaker}
+    for key in ("speaker_gender", "listener_gender"):
+        if getattr(seg, key) != "unknown":
+            line[key] = getattr(seg, key)
+    line.update(seconds=seconds, max_chars=max(8, int(seconds * CHARS_PER_SECOND)), text=seg.text)
+    return line
 
 
 def build_messages(

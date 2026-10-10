@@ -41,11 +41,21 @@ ollama_url = "http://localhost:11434"
 # max_segment_seconds = 12.0
 # split_pause_seconds = 0.6
 
+[diarize]
+# device = "cuda"             # pyannote community-1; falls back to the CPU
+# num_speakers = 2            # force the speaker count (also `dublador run --num-speakers`)
+# min_speakers = 1
+# max_speakers = 4
+# min_speaker_seconds = 2.0   # smaller speakers are merged into the closest one
+
 [speakers]
 # min_reference_seconds = 3.0           # voice-cloning clip length (ADR-0017: short clips carry less accent)
 # fallback_min_reference_seconds = 2.0  # accept a shorter clip, with a warning
 # max_reference_seconds = 4.5
 # target_reference_seconds = 3.5
+# gender_clips = 5                      # clean clips per speaker for the gender vote
+# min_gender_confidence = 0.3           # below this, a clear median F0 decides, else "unknown"
+# bank_voices_per_gender = 4            # must match the bank in voices/README.md
 # max_gap_seconds = 0.5                 # join segments separated by at most this pause
 # reference_lufs = -20.0
 

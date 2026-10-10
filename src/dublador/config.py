@@ -44,6 +44,8 @@ OUTPUT_FORMATS = ("mkv", "mp4")
 # Sections read by both the orchestrator and a stage: keys the orchestrator does
 # not know are stage settings (validated by the stage) and are passed through.
 SHARED_SECTIONS = ("translate",)
+# Stage sections that a CLI flag can set (e.g. `run --num-speakers`).
+FLAG_STAGE_SECTIONS = ("diarize",)
 
 _ENV_VAR = re.compile(r"\$(\w+)|\$\{(\w+)\}")
 _GFX_VERSION = re.compile(r"\d+\.\d+\.\d+")
@@ -165,7 +167,12 @@ def load_config(
         if env.get(var):
             _set_dotted(data, key, env[var])
     for key, value in (overrides or {}).items():
-        if value is not None:
+        if value is None:
+            continue
+        section, _, name = key.partition(".")
+        if section in FLAG_STAGE_SECTIONS and name:  # passed through to the stage
+            stage_sections.setdefault(section, {})[name] = value
+        else:
             _set_dotted(data, key, value)
 
     return _build(data, env, source_file, stage_sections)

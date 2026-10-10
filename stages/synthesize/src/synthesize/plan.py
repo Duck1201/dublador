@@ -7,6 +7,8 @@ from typing import Any
 
 from stagekit import hash_file, hash_value
 
+from synthesize import voicebank
+
 # Generation budget per segment. Normal pt-BR speech runs ~0.07 s per character; the
 # budget leaves room for slow voices while stopping a runaway generation early.
 MIN_SECONDS = 4.0
@@ -31,14 +33,24 @@ class Job:
     input_hash: str
 
 
-def voices(speakers: Mapping[str, Any], job_dir: Path) -> dict[str, Voice]:
-    """Cloning voices by speaker id; speakers without a reference are left out."""
+class MissingBankVoice(Exception):
+    pass
+
+
+def voices(speakers: Mapping[str, Any], job_dir: Path, models_dir: Path) -> dict[str, Voice]:
+    """The reference each speaker is cloned from: its own clip, or a bank voice."""
     found = {}
     for spk in speakers["speakers"]:
         ref = spk.get("reference")
         if spk["strategy"] == "clone" and ref:
             wav = job_dir / ref["path"]
             found[spk["id"]] = Voice(spk["id"], wav, ref["text"], hash_file(wav))
+        elif spk["strategy"] == "bank" and spk.get("voice"):
+            wav, txt = voicebank.paths(models_dir, spk["voice"])
+            if not (wav.is_file() and txt.is_file()):
+                raise MissingBankVoice(spk["voice"])
+            text = txt.read_text().strip()
+            found[spk["id"]] = Voice(spk["id"], wav, text, hash_file(wav))
     return found
 
 
