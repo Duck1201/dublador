@@ -152,6 +152,15 @@ Todo estágio é invocado da mesma forma pelo orquestrador:
 - Progresso é emitido no stdout como **JSON lines** (`{"event": "progress", "done": 12, "total": 340}`), que o orquestrador transforma em barra de progresso.
 - Código de saída `0` = sucesso; qualquer outro = falha, com a mensagem de erro em stderr.
 
+Além do modo padrão, todo estágio tem dois subcomandos auxiliares:
+
+```
+<venv>/bin/python -m <stage> prefetch --config <config.toml>   # baixa os modelos para models_dir (usado por `dublador setup`)
+<venv>/bin/python -m <stage> probe                             # imprime JSON com versões e GPU (usado por `dublador doctor`)
+```
+
+O parsing desses argumentos, a escrita atômica, a validação dos schemas e o emissor de progresso ficam no pacote compartilhado `packages/stagekit`. Ele contém só o contrato (nada de modelo), por isso não viola a regra de que um estágio não importa código de outro ([ADR-0007](adr/0007-venv-por-estagio-e-contrato-de-arquivos.md)).
+
 ## CLI
 
 Construída com **Typer** ([ADR-0010](adr/0010-cli.md)). Mensagens em inglês.
@@ -220,6 +229,8 @@ dublador/
 ├── config.example.toml
 ├── pyproject.toml            # orquestrador + CLI (pacote `dublador`)
 ├── src/dublador/             # CLI, orquestração, manifest, ffmpeg (01 e 10), loop de ajuste
+├── packages/
+│   └── stagekit/             # contrato compartilhado: args, config, escrita atômica, schemas, progresso
 ├── stages/
 │   ├── separate/             # cada um: pyproject.toml próprio; venv em <venvs_dir>/<nome>
 │   ├── transcribe/
