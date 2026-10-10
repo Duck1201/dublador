@@ -4,7 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado do projeto
 
-`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. **Ainda não há código**: o repositório só tem documentação de planejamento. Ainda não existem comandos de build, lint ou testes; quando a implementação começar, eles devem ser registrados aqui.
+`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. A implementação está no marco **M0 (Fundação)**: por enquanto só existe o esqueleto da CLI (`src/dublador/`), e os subcomandos ainda saem com "not implemented yet". O plano e os tickets estão no `plan.md` e nos issues do GitHub (mapas #1 e #2).
+
+## Comandos
+
+```bash
+uv sync                      # cria o .venv do orquestrador (Python 3.13)
+uv run dublador --help
+uv run ruff check .          # lint
+uv run ruff format .         # formatação (use --check no CI)
+uv run pyright               # tipos
+uv run pytest                # testes; um só: uv run pytest tests/test_cli.py::test_version
+```
+
+O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `ruff.toml` da raiz vale também para `packages/` e `stages/` e mira o Python 3.10, porque os estágios podem usar versões mais antigas.
 
 Leia nesta ordem antes de implementar qualquer coisa:
 1. `docs/ARCHITECTURE.md`: estágios, contrato de arquivos, CLI, configuração e layout proposto do repositório.
