@@ -120,7 +120,7 @@ def test_unknown_override_key(home: Path, cwd: Path) -> None:
 def test_snapshot_round_trip_keeps_stage_sections(home: Path, cwd: Path, tmp_path: Path) -> None:
     write(
         cwd / "config.toml",
-        '[gpu]\nhsa_override_gfx_version = "11.0.0"\n[synthesize]\nbackend = "qwen3_tts"\n',
+        '[gpu]\nhsa_override_gfx_version = "11.0.0"\n[synthesize]\nbackend = "omnivoice"\n',
     )
     config = load_config(env={"HOME": str(home)}, cwd=cwd)
     job_dir = tmp_path / "job"
@@ -129,7 +129,7 @@ def test_snapshot_round_trip_keeps_stage_sections(home: Path, cwd: Path, tmp_pat
     assert snapshot.name == "config.snapshot.toml"
     assert list(job_dir.iterdir()) == [snapshot]
     data = tomllib.loads(snapshot.read_text())
-    assert data["synthesize"] == {"backend": "qwen3_tts"}
+    assert data["synthesize"] == {"backend": "omnivoice"}
     assert data["gpu"] == {"hsa_override_gfx_version": "11.0.0"}
     assert data["paths"]["work_dir"] == str(home / "dublador" / "work")
     # The snapshot is itself a valid config file that reproduces the same config.

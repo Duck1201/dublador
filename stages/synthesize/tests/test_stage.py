@@ -31,10 +31,19 @@ class FakeBackend:
         CALLS.append(f"voice:{Path(ref_wav).name}")
         return ref_text
 
-    def synthesize(self, text: str, voice: Any, target_duration: float | None = None) -> np.ndarray:
+    def synthesize(
+        self,
+        text: str,
+        voice: Any,
+        target_duration: float | None = None,
+        max_seconds: float | None = None,
+    ) -> np.ndarray:
         CALLS.append(f"say:{text}")
         self.sample_rate = 24000
-        return np.zeros(int(0.1 * len(text) * 24000), dtype=np.float32)
+        # "loop" never reaches its end token; "flaky" misses it only the first time.
+        runaway = text == "loop" or (text == "flaky" and CALLS.count("say:flaky") == 1)
+        seconds = max_seconds if runaway and max_seconds else 0.1 * len(text)
+        return np.zeros(int(seconds * 24000), dtype=np.float32)
 
 
 @pytest.fixture(autouse=True)
@@ -120,6 +129,19 @@ def test_backend_options_are_part_of_the_cache_key(tmp_path: Path) -> None:
     config.write_text(config.read_text() + 'voice_style = "calm"\n')
     run_stage(job, config)
     assert "say:Olá" in CALLS
+
+
+def test_runaway_generation_is_retried_then_kept_with_a_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    job, config = make_job(tmp_path, ["flaky", "loop"])
+    doc = run_stage(job, config)
+    assert [c for c in CALLS if c.startswith("say:")] == ["say:flaky"] * 2 + ["say:loop"] * 2
+    # Each segment's window is 1.5 s, so the budget is 3 x 1.5 s.
+    assert [s["duration"] for s in doc["segments"]] == [0.5, 4.5]
+    out = capsys.readouterr().out
+    assert out.count('"warning"') == 1
+    assert "seg_0002: fake did not finish the sentence within 4.5 s twice" in out
 
 
 def test_unknown_backend(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

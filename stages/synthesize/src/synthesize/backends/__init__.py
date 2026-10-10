@@ -19,8 +19,15 @@ class TTSBackend(Protocol):
         """Per-speaker voice state (e.g. a cloning prompt), built once and reused."""
         ...
 
-    def synthesize(self, text: str, voice: Any, target_duration: float | None = None) -> np.ndarray:
-        """Mono float32 audio at `sample_rate`."""
+    def synthesize(
+        self,
+        text: str,
+        voice: Any,
+        target_duration: float | None = None,
+        max_seconds: float | None = None,
+    ) -> np.ndarray:
+        """Mono float32 audio at `sample_rate`, never longer than `max_seconds`: autoregressive
+        models can miss their end token and generate until a VRAM-filling limit."""
         ...
 
     def settings(self) -> dict[str, Any]:
@@ -29,7 +36,7 @@ class TTSBackend(Protocol):
 
 
 BACKENDS = {
-    "qwen3_tts": "synthesize.backends.qwen3_tts:Qwen3TTSBackend",
+    "omnivoice": "synthesize.backends.omnivoice:OmniVoiceBackend",
 }
 
 

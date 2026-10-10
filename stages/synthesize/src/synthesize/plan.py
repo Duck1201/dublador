@@ -7,6 +7,12 @@ from typing import Any
 
 from stagekit import hash_file, hash_value
 
+# Generation budget per segment. Normal pt-BR speech runs ~0.07 s per character; the
+# budget leaves room for slow voices while stopping a runaway generation early.
+MIN_SECONDS = 4.0
+WINDOW_FACTOR = 3.0
+SECONDS_PER_CHAR = 0.2
+
 
 @dataclass(frozen=True)
 class Voice:
@@ -59,6 +65,15 @@ def jobs(
             )
         )
     return result
+
+
+def max_seconds(job: Job) -> float:
+    """The most audio a segment may need; a backend that hits it has run away."""
+    return max(MIN_SECONDS, WINDOW_FACTOR * job.target_duration, SECONDS_PER_CHAR * len(job.text))
+
+
+def ran_away(duration: float, budget: float) -> bool:
+    return duration >= budget - 0.1  # backends stop on a token boundary just under the budget
 
 
 def split(

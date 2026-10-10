@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 DEFAULT_SPEAKER = "SPK_00"
+TAIL = 0.08  # seconds kept after the last word of a reference
 
 
 @dataclass(frozen=True)
@@ -34,9 +35,12 @@ def speech_seconds(segments: Sequence[dict[str, Any]]) -> dict[str, float]:
     return totals
 
 
-def _mean_score(segments: Sequence[dict[str, Any]]) -> float:
-    scores = [w["score"] for s in segments for w in s.get("words", []) if "score" in w]
-    return float(np.mean(scores)) if scores else 0.5
+def _words(segment: dict[str, Any]) -> list[dict[str, Any]]:
+    """Timed words of a segment; a segment without them counts as one word."""
+    timed = [w for w in segment.get("words", []) if "start" in w and "end" in w]
+    if timed:
+        return timed
+    return [{"word": segment["text"], "start": segment["start"], "end": segment["end"]}]
 
 
 def candidates(
@@ -46,30 +50,41 @@ def candidates(
     max_seconds: float,
     max_gap: float,
 ) -> list[Candidate]:
-    """Runs of consecutive same-speaker segments with short gaps, min..max seconds long."""
+    """Word-aligned clips min..max seconds long inside runs of consecutive same-speaker
+    segments with short gaps. A clip never cuts a word."""
     found: list[Candidate] = []
-    for i, first in enumerate(segments):
-        speaker = speaker_of(first)
-        run = [first]
-        for nxt in segments[i + 1 :]:
-            if speaker_of(nxt) != speaker or nxt["start"] - run[-1]["end"] > max_gap:
-                break
-            if nxt["end"] - first["start"] > max_seconds:
-                break
-            run.append(nxt)
-        # Every prefix of the run that is long enough is a candidate.
-        for j in range(len(run)):
-            start, end = run[0]["start"], run[j]["end"]
-            if min_seconds <= end - start <= max_seconds:
+    i = 0
+    while i < len(segments):
+        speaker = speaker_of(segments[i])
+        run = [segments[i]]
+        while (
+            i + len(run) < len(segments)
+            and speaker_of(segments[i + len(run)]) == speaker
+            and segments[i + len(run)]["start"] - run[-1]["end"] <= max_gap
+        ):
+            run.append(segments[i + len(run)])
+        words = [w for seg in run for w in _words(seg)]
+        for a, first in enumerate(words):
+            for b in range(a, len(words)):
+                last = words[b]
+                if last["end"] - first["start"] > max_seconds:
+                    break
+                if last["end"] - first["start"] < min_seconds:
+                    continue
+                # A little tail keeps the last phoneme, without reaching the next word.
+                nxt = words[b + 1]["start"] if b + 1 < len(words) else last["end"] + TAIL
+                chosen = words[a : b + 1]
+                scores = [w["score"] for w in chosen if "score" in w]
                 found.append(
                     Candidate(
                         speaker=speaker,
-                        start=start,
-                        end=end,
-                        text=" ".join(s["text"].strip() for s in run[: j + 1]),
-                        word_score=_mean_score(run[: j + 1]),
+                        start=first["start"],
+                        end=min(last["end"] + TAIL, max(nxt, last["end"])),
+                        text=" ".join(w["word"].strip() for w in chosen),
+                        word_score=float(np.mean(scores)) if scores else 0.5,
                     )
                 )
+        i += len(run)
     return found
 
 
@@ -78,11 +93,14 @@ def _db(x: np.ndarray) -> float:
     return 20 * np.log10(max(rms, 1e-9))
 
 
-def score(cand: Candidate, vocals: np.ndarray, accompaniment: np.ndarray, sr: int) -> float:
-    """Higher is better: clean voice (little music under it), ~10 s long, confident words."""
+def score(
+    cand: Candidate, vocals: np.ndarray, accompaniment: np.ndarray, sr: int, target: float
+) -> float:
+    """Higher is better: clean voice (little music under it), close to `target` seconds,
+    confident words."""
     a, b = int(cand.start * sr), int(cand.end * sr)
     voice_to_music = _db(vocals[a:b]) - _db(accompaniment[a:b])
-    return voice_to_music - 0.5 * abs(cand.duration - 10.0) + 10.0 * cand.word_score
+    return voice_to_music - 2.0 * abs(cand.duration - target) + 10.0 * cand.word_score
 
 
 def best_reference(
@@ -95,6 +113,7 @@ def best_reference(
     min_seconds: float,
     fallback_min_seconds: float,
     max_seconds: float,
+    target_seconds: float,
     max_gap: float,
 ) -> tuple[Candidate | None, str | None]:
     """Best clip for a speaker, and a warning when only a short one was found."""
@@ -105,6 +124,6 @@ def best_reference(
     ):
         found = candidates(own, min_seconds=minimum, max_seconds=max_seconds, max_gap=max_gap)
         if found:
-            best = max(found, key=lambda c: score(c, vocals, accompaniment, sr))
+            best = max(found, key=lambda c: score(c, vocals, accompaniment, sr, target_seconds))
             return best, warning
     return None, f"{speaker}: no clip of {fallback_min_seconds:g}s or more; needs a bank voice"

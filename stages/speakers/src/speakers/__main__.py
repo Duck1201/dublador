@@ -17,10 +17,12 @@ from stagekit.probe import report
 from speakers.reference import best_reference, speaker_of, speech_seconds
 
 VERSION = metadata.version("dublador-stage-speakers")
+# Short references (ADR-0017): a longer English clip carries its accent into pt-BR.
 DEFAULTS: dict[str, Any] = {
-    "min_reference_seconds": 6.0,
-    "fallback_min_reference_seconds": 3.0,
-    "max_reference_seconds": 15.0,
+    "min_reference_seconds": 3.0,
+    "fallback_min_reference_seconds": 2.0,
+    "max_reference_seconds": 4.5,
+    "target_reference_seconds": 3.5,
     "max_gap_seconds": 0.5,
     "reference_lufs": -20.0,
 }
@@ -75,6 +77,7 @@ def run(ctx: StageContext) -> None:
             min_seconds=opts["min_reference_seconds"],
             fallback_min_seconds=opts["fallback_min_reference_seconds"],
             max_seconds=opts["max_reference_seconds"],
+            target_seconds=opts["target_reference_seconds"],
             max_gap=opts["max_gap_seconds"],
         )
         if warning:

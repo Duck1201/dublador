@@ -64,7 +64,7 @@ Determina **quem fala quando** e atribui um `speaker` (`SPK_00`, `SPK_01`…) a 
 
 ### 05 — speakers
 Para cada falante:
-- calcula o tempo total de fala e escolhe o **melhor trecho de referência** para clonagem (6–15 s, fala contínua, sem sobreposição, sem música residual), guardando também a transcrição exata do trecho (alguns TTS a exigem);
+- calcula o tempo total de fala e escolhe o **melhor trecho de referência** para clonagem (3–4,5 s cortados em fronteira de palavra, [ADR-0017](adr/0017-tts-omnivoice-e-referencia-curta.md); fala contínua, sem sobreposição, sem música residual), guardando também a transcrição exata do trecho (alguns TTS a exigem);
 - classifica o **gênero por falante**, agregando (votação) as predições de vários segmentos, com nível de confiança — nunca segmento a segmento;
 - decide a estratégia de voz: `clone` se houver referência boa o bastante, senão `bank:<voz>` do banco de vozes por gênero. ([ADR-0002](adr/0002-vozes-hibridas.md))
 

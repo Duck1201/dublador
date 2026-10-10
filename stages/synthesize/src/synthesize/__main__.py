@@ -16,11 +16,12 @@ from stagekit.gpu import wait_for_vram
 from stagekit.probe import report
 
 from synthesize import backends
-from synthesize.plan import jobs, split, voices
+from synthesize.audio import trim_silence
+from synthesize.plan import jobs, max_seconds, ran_away, split, voices
 
 VERSION = metadata.version("dublador-stage-synthesize")
 DEFAULTS: dict[str, Any] = {
-    "backend": "qwen3_tts",
+    "backend": "omnivoice",
     "min_free_vram_gb": 5.0,  # wait for the previous stage to release the GPU
     "checkpoint_every": 10,
 }
@@ -108,14 +109,24 @@ def run(ctx: StageContext) -> None:
             voice = by_speaker[job.speaker]
             if job.speaker not in prepared:
                 prepared[job.speaker] = backend.prepare_voice(str(voice.ref_wav), voice.ref_text)
-            audio = backend.synthesize(job.text, prepared[job.speaker])
-            if audio.size == 0 or not np.isfinite(audio).all():
-                raise StageError(f"{job.id}: {backend.name} produced no valid audio")
+            budget = max_seconds(job)
+            for attempt in (1, 2):  # sampling is random: a runaway rarely repeats
+                audio = backend.synthesize(job.text, prepared[job.speaker], max_seconds=budget)
+                if audio.size == 0 or not np.isfinite(audio).all():
+                    raise StageError(f"{job.id}: {backend.name} produced no valid audio")
+                if not ran_away(len(audio) / backend.sample_rate, budget):
+                    break
+                if attempt == 2:
+                    ctx.progress.warning(
+                        f"{job.id}: {backend.name} did not finish the sentence within"
+                        f" {budget:.1f} s twice; keeping the cut-off audio"
+                    )
             if sample_rate and backend.sample_rate != sample_rate:
                 raise StageError(
                     f"{backend.name} sample rate changed ({sample_rate} -> {backend.sample_rate})"
                 )
             sample_rate = backend.sample_rate
+            audio = trim_silence(audio, sample_rate)
             with atomic_path(ctx.job_dir / SEGMENTS_DIR / f"{job.id}.wav") as tmp:
                 soundfile.write(str(tmp), audio, sample_rate, subtype="PCM_16")
             entries[job.id] = _entry(job.id, len(audio) / sample_rate, job.input_hash)
@@ -133,7 +144,7 @@ def prefetch(config: dict[str, Any]) -> None:
 
 
 def probe() -> dict[str, Any]:
-    return report(VERSION, ("qwen-tts", "transformers", "torch"))
+    return report(VERSION, ("omnivoice", "transformers", "torch"))
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ EXAMPLES: dict[str, dict[str, Any]] = {
     },
     "synthesis/v1": {
         "schema": "synthesis/v1",
-        "backend": "qwen3_tts",
+        "backend": "omnivoice",
         "sample_rate": 24000,
         "segments": [
             {

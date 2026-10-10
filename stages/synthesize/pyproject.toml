@@ -8,7 +8,7 @@ dependencies = [
     "dublador-stagekit",
     "numpy",
     "soundfile>=0.12",
-    "qwen-tts==0.1.1",
+    "omnivoice==0.2.1",
     "torch==2.11.0",
     "torchaudio==2.11.0",
     # Needed by the ROCm torch wheel and only on the PyTorch index; uv applies
@@ -28,6 +28,10 @@ packages = ["src/synthesize"]
 
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+override-dependencies = [
+    # Only omnivoice's demo app uses gradio; never install it.
+    "gradio; sys_platform == 'never'",
+]
 
 [tool.uv.sources]
 dublador-stagekit = { path = "../../packages/stagekit", editable = true }
