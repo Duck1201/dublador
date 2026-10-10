@@ -194,3 +194,16 @@ def test_stage_version_tracks_source_code(tmp_path: Path) -> None:
 def test_in_process_stage_version_tracks_module() -> None:
     version = stages.PIPELINE[0].resolved_version()
     assert version is not None and "+src." in version
+
+
+def test_stage_env_defaults(config: Config, monkeypatch: pytest.MonkeyPatch) -> None:
+    from dublador.runner import stage_env
+
+    monkeypatch.delenv("MIOPEN_FIND_MODE", raising=False)
+    monkeypatch.setenv("HSA_OVERRIDE_GFX_VERSION", "11.0.0")
+    env = stage_env(config)
+    assert env["MIOPEN_FIND_MODE"] == "FAST"
+    assert env["HF_HOME"] == str(config.paths.models_dir / "hf")
+    assert "HSA_OVERRIDE_GFX_VERSION" not in env  # only when set in the config
+    monkeypatch.setenv("MIOPEN_FIND_MODE", "NORMAL")
+    assert stage_env(config)["MIOPEN_FIND_MODE"] == "NORMAL"

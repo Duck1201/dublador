@@ -48,6 +48,13 @@ ollama_url = "http://localhost:11434"
 # max_gap_seconds = 0.5                 # join segments separated by at most this pause
 # reference_lufs = -20.0
 
+[synthesize]
+# backend = "qwen3_tts"     # pluggable TTS (docs/MODELS.md §6.2); other keys go to the backend
+# min_free_vram_gb = 5.0    # wait for the previous stage to free the GPU
+# checkpoint_every = 10     # rewrite synthesis.json every N segments
+# model = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"   # qwen3_tts option
+# dtype = "bfloat16"                        # qwen3_tts option
+
 [fit]
 max_speedup = 1.25
 max_fit_iterations = 2

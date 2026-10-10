@@ -40,6 +40,9 @@ def stage_env(config: Config, extra: dict[str, str] | None = None) -> dict[str, 
         TORCH_HOME=str(models / "torch"),
         MIOPEN_USER_DB_PATH=str(models / "miopen"),
     )
+    # MIOpen's default exhaustive search compiles convolution kernels for every new
+    # input shape; with variable-length audio that made TTS 12-30x slower (MODELS.md).
+    env.setdefault("MIOPEN_FIND_MODE", "FAST")
     env.pop("HSA_OVERRIDE_GFX_VERSION", None)
     if config.gpu.hsa_override_gfx_version:
         env["HSA_OVERRIDE_GFX_VERSION"] = config.gpu.hsa_override_gfx_version

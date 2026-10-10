@@ -106,6 +106,7 @@ export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True    # reduz fragmentação
 - `HSA_OVERRIDE_GFX_VERSION=11.0.0` faz o runtime tratar a placa como gfx1100. Funciona na maioria dos relatos de RDNA3, mas Navi 33 tem menos registradores/CU que Navi 31 → kernels gfx1100 podem falhar em casos raros [NV]. Por isso: **primeiro sem override**.
 - hipBLASLt pode avisar "unsupported architecture" e cair para hipBLAS (só perda de desempenho) [NV].
 - MIOpen compila kernels na primeira execução (convoluções do Demucs/wav2vec2/ECAPA) — primeira rodada bem mais lenta; persistir o cache.
+- **`MIOPEN_FIND_MODE=FAST` é essencial** [V 2026-10-10]: no modo padrão o MIOpen faz busca exaustiva e compila kernels para **cada formato novo de entrada**. Com áudio de comprimento variável (o decodificador do TTS recebe um tamanho diferente a cada fala), o Qwen3-TTS levava RTF 23–62; com `FAST`, RTF 1,7–2,1. O runner exporta `MIOPEN_FIND_MODE=FAST` para todos os estágios (a não ser que já esteja definido).
 - `flash-attn` (recomendado por Qwen3-TTS/Qwen3-ASR) não tem wheel ROCm simples para gfx11 → usar `attn_implementation="sdpa"` [NV quanto ao ganho/perda].
 - Kernel **PREEMPT_RT** (`-rt-amd64`): sem relatos específicos encontrados de problemas amdgpu+KFD com RT; testar estabilidade em job longo [NV].
 - `onnxruntime-gpu` é CUDA-only; para ROCm a AMD migrou para o EP MIGraphX → **evitar modelos ONNX na GPU** (MDX-Net `.onnx` rodam em CPU).
@@ -392,6 +393,7 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 - [ ] Rodar o **protocolo de benchmark** (§5) nos 4 modelos; comparar Ollama **Vulkan vs ROCm** (tok/s) para o modelo vencedor.
 
 **TTS**
+- [~] Qwen3-TTS-12Hz-1.7B-Base no estágio `synthesize` (2026-10-10, bf16, SDPA): carrega em ~100 s na 1ª vez, pico de **5,0 GB** de VRAM, saída 24 kHz, RTF ~1,7–2,1 com `MIOPEN_FIND_MODE=FAST` (sem isso, 23–62). As falas saem ~20–40 % mais longas que a janela original (ex.: 3,9 s para 3,2 s), como esperado sem controle de duração (M3). O pacote `qwen-tts` 0.1.1 fixa `transformers==4.57.3` e avisa que o SoX não está instalado (inofensivo). Na pipeline, o pico de VRAM do sistema chegou a **7,3 GB** dos 8 GB (modelo + caches + desktop): cabe, com pouca folga. Inteligibilidade: o Whisper large-v3 em modo `pt` transcreveu a faixa dublada praticamente igual ao texto traduzido (fala sintética do espeak como referência de voz).
 - [ ] Instalar e gerar as mesmas 30 frases PT-BR (com nasais, "tch/dj", números, siglas, nomes próprios em inglês) com a **shortlist do §6.2** (Qwen3-TTS, FireRedTTS3, MOSS-TTS-Local, OmniVoice, Chatterbox pt-br, dots.tts MF) — usando **a mesma referência em inglês** e **uma referência PT-BR**.
 - [ ] Avaliar: sotaque BR (nota 1–5, cego), similaridade de voz (ECAPA cosine ref×saída), inteligibilidade (WER com Whisper em PT), artefatos/alucinações (palavras puladas/repetidas), VRAM, RTF.
 - [ ] OmniVoice (`duration=`) e MOSS-TTS (`tokens=`): precisão da duração-alvo (erro médio em s) e naturalidade quando a duração alvo é apertada (−15 %).

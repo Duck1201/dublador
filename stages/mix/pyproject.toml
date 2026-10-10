@@ -1,0 +1,28 @@
+[project]
+name = "dublador-stage-mix"
+version = "0.1.0"
+description = "dublador stage 09: place dubbed speech over the background track"
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "dublador-stagekit",
+    "numpy",
+    "scipy>=1.13",
+    "soundfile>=0.12",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mix"]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.uv.sources]
+dublador-stagekit = { path = "../../packages/stagekit", editable = true }

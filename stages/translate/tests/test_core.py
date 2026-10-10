@@ -20,7 +20,9 @@ def segs(n: int) -> list[Segment]:
 
 
 def answer(ids: list[str], prefix: str = "linha") -> str:
-    return json.dumps({"translations": [{"id": i, "text": f"{prefix.capitalize()} {i}"} for i in ids]})
+    return json.dumps(
+        {"translations": [{"id": i, "text": f"{prefix.capitalize()} {i}"} for i in ids]}
+    )
 
 
 def requested_ids(messages: list[dict[str, str]]) -> list[str]:
