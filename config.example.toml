@@ -34,6 +34,13 @@ ollama_url = "http://localhost:11434"
 # max_segment_seconds = 12.0
 # split_pause_seconds = 0.6
 
+[speakers]
+# min_reference_seconds = 6.0           # voice-cloning clip length (ADR-0002: 6-15 s)
+# fallback_min_reference_seconds = 3.0  # accept a shorter clip, with a warning
+# max_reference_seconds = 15.0
+# max_gap_seconds = 0.5                 # join segments separated by at most this pause
+# reference_lufs = -20.0
+
 [fit]
 max_speedup = 1.25
 max_fit_iterations = 2
