@@ -24,6 +24,16 @@ ollama_url = "http://localhost:11434"
 # use_autocast = true    # fp16; ~2.7x faster, same stems in tests
 # overlap = 2            # fewer overlapping windows = faster; default: the model's own
 
+[transcribe]
+# model = "large-v3"
+# device = "cpu"              # Whisper via CTranslate2; GPU support is issue #19
+# compute_type = "int8"
+# batch_size = 8
+# align_device = "cuda"       # wav2vec2 word alignment (torch ROCm)
+# silence_dbfs = -50.0        # drop text found over quieter audio (hallucinations)
+# max_segment_seconds = 12.0
+# split_pause_seconds = 0.6
+
 [fit]
 max_speedup = 1.25
 max_fit_iterations = 2
