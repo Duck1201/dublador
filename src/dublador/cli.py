@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from dublador import __version__
+from dublador.config import Config, ConfigError, load_config
 
 app = typer.Typer(
     name="dublador",
@@ -26,6 +27,14 @@ class OutputFormat(StrEnum):
 def _not_implemented(command: str) -> NoReturn:
     err_console.print(f"[red]error:[/red] `dublador {command}` is not implemented yet")
     raise typer.Exit(code=1)
+
+
+def _load_config(overrides: dict[str, object] | None = None) -> Config:
+    try:
+        return load_config(overrides)
+    except ConfigError as e:
+        err_console.print(f"[red]config error:[/red] {e}")
+        raise typer.Exit(code=2) from e
 
 
 def _version_callback(value: bool) -> None:
@@ -56,6 +65,14 @@ def run(
     audio_track: Annotated[int | None, typer.Option(help="Audio track index to dub.")] = None,
 ) -> None:
     """Dub a video from start to finish."""
+    _load_config(
+        {
+            "languages.source": source_lang,
+            "languages.target": target_lang,
+            "translate.model": translator_model,
+            "output.format": format.value if format else None,
+        }
+    )
     _not_implemented("run")
 
 

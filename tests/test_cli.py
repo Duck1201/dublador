@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
@@ -27,3 +29,11 @@ def test_stub_commands_fail_until_implemented(command: str) -> None:
     result = runner.invoke(app, [command])
     assert result.exit_code == 1
     assert "not implemented yet" in result.output
+
+
+def test_run_reports_config_errors(tmp_path: Path) -> None:
+    config = tmp_path / "bad.toml"
+    config.write_text('[output]\nformat = "avi"\n')
+    result = runner.invoke(app, ["run"], env={"DUBLADOR_CONFIG": str(config)})
+    assert result.exit_code == 2
+    assert "output.format" in result.output

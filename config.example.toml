@@ -1,10 +1,14 @@
 # Copy to config.toml (git-ignored) and adjust. See docs/ARCHITECTURE.md#configuração.
+# Lookup: $DUBLADOR_CONFIG, then ./config.toml, then $XDG_CONFIG_HOME/dublador/config.toml.
+# Sections other than the ones below (e.g. [synthesize]) are stage settings, passed through to the stages.
 # Precedence: CLI flags > environment variables > config.toml > defaults.
 
 [paths]
 work_dir   = "~/dublador/work"     # env: DUBLADOR_WORK_DIR
 models_dir = "~/dublador/models"   # env: DUBLADOR_MODELS_DIR
-venvs_dir  = "~/dublador/venvs"    # env: DUBLADOR_VENVS_DIR — keep on the same filesystem as UV_CACHE_DIR
+venvs_dir  = "~/dublador/venvs"    # env: DUBLADOR_VENVS_DIR — keep on the same filesystem as uv_cache_dir
+uv_cache_dir = "~/dublador/uv-cache"  # env: UV_CACHE_DIR
+# Paths must be absolute or start with ~; $VARS are expanded.
 
 [languages]
 source = "en"
