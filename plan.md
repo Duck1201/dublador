@@ -43,7 +43,7 @@ Resultado: [`docs/RESEARCH.md`](docs/RESEARCH.md). Nenhum achado contradiz a arq
 Resultado provisório: [`docs/MODELS.md`](docs/MODELS.md), com um padrão por estágio. Para fechar esta etapa, falta:
 
 - [x] **Preparar o ambiente no SSD**: cache do `uv`, venvs e modelos ([ADR-0014](docs/adr/0014-tudo-no-ssd.md)). → [#8](https://github.com/Duck1201/dublador/issues/8)
-- [x] **Validar o ROCm** com o `torch` ROCm na RX 7600, sem `HSA_OVERRIDE_GFX_VERSION`: os dois stacks (2.11+rocm7.2 e 2.8+rocm6.4) funcionam sem override (resultados no [`MODELS.md`](docs/MODELS.md#tarefas-de-validação)); falta só conferir o log do kernel do teste de estresse. → [#10](https://github.com/Duck1201/dublador/issues/10)
+- [x] **Validar o ROCm** com o `torch` ROCm na RX 7600, sem `HSA_OVERRIDE_GFX_VERSION`: os dois stacks (2.11+rocm7.2 e 2.8+rocm6.4) funcionam sem override e passaram por 30 min de estresse sem erro no kernel (resultados no [`MODELS.md`](docs/MODELS.md#tarefas-de-validação)). → [#10](https://github.com/Duck1201/dublador/issues/10)
 - [ ] **Decidir o motor de ASR**: WhisperX na GPU (CTranslate2 ROCm), WhisperX na CPU ou Qwen3-ASR. → [#13](https://github.com/Duck1201/dublador/issues/13)
 - [ ] **Comparar os TTS** (a etapa mais aberta): a pesquisa ampliada está concluída e a shortlist tem 6 modelos ([MODELS.md §6.2](docs/MODELS.md#62-shortlist-do-bake-off-provisória)). Falta o teste comparativo com as mesmas frases PT-BR e referência EN e PT, avaliando sotaque (teste cego), similaridade de voz, inteligibilidade, VRAM e controle de duração.
 - [ ] **Rodar o benchmark do tradutor**: `gemma4:e4b-it-qat` contra `qwen3:30b-a3b-instruct-2507-q4_K_M` ([ADR-0015](docs/adr/0015-tradutor-qualidade-instruct.md)).
