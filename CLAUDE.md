@@ -17,7 +17,7 @@ uv run pyright               # tipos
 uv run pytest                # testes; um só: uv run pytest tests/test_cli.py::test_version
 ```
 
-O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `ruff.toml` da raiz vale também para `packages/` e `stages/` e mira o Python 3.10, porque os estágios podem usar versões mais antigas.
+O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `pytest` da raiz também roda os testes de `packages/stagekit` (o contrato compartilhado, instalado como dependência editável); ele precisa continuar compatível com Python 3.10+. O `ruff.toml` da raiz vale também para `packages/` e `stages/` e mira o Python 3.10, porque os estágios podem usar versões mais antigas.
 
 Leia nesta ordem antes de implementar qualquer coisa:
 1. `docs/ARCHITECTURE.md`: estágios, contrato de arquivos, CLI, configuração e layout proposto do repositório.

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/transcript/v1",
+  "title": "ASR transcript with word timestamps",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "language",
+    "segments"
+  ],
+  "properties": {
+    "schema": {
+      "const": "transcript/v1"
+    },
+    "language": {
+      "type": "string"
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "start",
+          "end",
+          "text",
+          "speaker",
+          "words"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^seg_[0-9]{4,}$"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": "number",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^SPK_[0-9]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "word"
+              ],
+              "properties": {
+                "word": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "score": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

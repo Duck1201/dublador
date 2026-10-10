@@ -15,6 +15,7 @@ from typing import Any
 
 import tomli_w
 import tomllib
+from stagekit import atomic_write_text
 
 SNAPSHOT_NAME = "config.snapshot.toml"
 
@@ -164,9 +165,7 @@ def load_config(
 def write_snapshot(config: Config, job_dir: Path) -> Path:
     """Write the effective config to <job_dir>/config.snapshot.toml atomically."""
     target = job_dir / SNAPSHOT_NAME
-    tmp = target.with_name(f".{target.name}.tmp")
-    tmp.write_bytes(tomli_w.dumps(config.to_toml_dict()).encode())
-    os.replace(tmp, target)
+    atomic_write_text(target, tomli_w.dumps(config.to_toml_dict()))
     return target
 
 

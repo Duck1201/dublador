@@ -136,7 +136,7 @@ Dentro de cada estágio, o cache também é **por segmento**: cada segmento carr
 Regras do contrato:
 
 - Um estágio só escreve **no próprio diretório**, gravando em arquivo temporário e renomeando no fim (escrita atômica) — um estágio interrompido nunca deixa saída "meio pronta".
-- Os formatos JSON têm schema versionado (`"schema": "transcript/v1"`), validado na leitura.
+- Os formatos JSON têm schema versionado (`"schema": "transcript/v1"`), validado na leitura e antes da escrita. Os schemas ficam em `packages/stagekit/src/stagekit/schemas/`.
 - Tempos são sempre em **segundos (float) relativos ao início do vídeo**.
 - IDs de segmento são estáveis entre estágios (`seg_0001`…).
 
@@ -156,7 +156,7 @@ Além do modo padrão, todo estágio tem dois subcomandos auxiliares:
 
 ```
 <venv>/bin/python -m <stage> prefetch --config <config.toml>   # baixa os modelos para models_dir (usado por `dublador setup`)
-<venv>/bin/python -m <stage> probe                             # imprime JSON com versões e GPU (usado por `dublador doctor`)
+<venv>/bin/python -m <stage> probe                             # imprime JSON `stage-probe/v1` com versões e GPU (usado por `dublador doctor`)
 ```
 
 O parsing desses argumentos, a escrita atômica, a validação dos schemas e o emissor de progresso ficam no pacote compartilhado `packages/stagekit`. Ele contém só o contrato (nada de modelo), por isso não viola a regra de que um estágio não importa código de outro ([ADR-0007](adr/0007-venv-por-estagio-e-contrato-de-arquivos.md)).
@@ -230,7 +230,8 @@ dublador/
 ├── pyproject.toml            # orquestrador + CLI (pacote `dublador`)
 ├── src/dublador/             # CLI, orquestração, manifest, ffmpeg (01 e 10), loop de ajuste
 ├── packages/
-│   └── stagekit/             # contrato compartilhado: args, config, escrita atômica, schemas, progresso
+│   └── stagekit/             # contrato compartilhado: args, config, escrita atômica, progresso e os
+│                             # JSON Schemas (src/stagekit/schemas/), que vão junto para o venv de cada estágio
 ├── stages/
 │   ├── separate/             # cada um: pyproject.toml próprio; venv em <venvs_dir>/<nome>
 │   ├── transcribe/
@@ -240,7 +241,6 @@ dublador/
 │   ├── synthesize/
 │   ├── fit/
 │   └── mix/
-├── schemas/                  # JSON Schemas do contrato de arquivos
 ├── voices/                   # metadados do banco de vozes de fallback (sem áudio no git)
 ├── tests/
 └── docs/

@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/manifest/v1",
+  "title": "Job state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "job_id",
+    "video",
+    "created_at",
+    "stages"
+  ],
+  "properties": {
+    "schema": {
+      "const": "manifest/v1"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "video": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "hash",
+        "size"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputs_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

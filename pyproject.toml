@@ -6,6 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.13"
 dependencies = [
+    "dublador-stagekit",
     "rich>=15.0.0",
     "tomli-w>=1.2.0",
     "typer>=0.27.3",
@@ -19,8 +20,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = ["--strict-markers"]
+testpaths = ["tests", "packages/stagekit/tests"]
+addopts = ["--strict-markers", "--import-mode=importlib"]
+
+[tool.uv.sources]
+# Plain path dependency, not a uv workspace: each stage keeps its own lock and venv.
+dublador-stagekit = { path = "packages/stagekit", editable = true }
 
 [dependency-groups]
 dev = [
