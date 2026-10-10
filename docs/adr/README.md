@@ -1,0 +1,21 @@
+# Architecture Decision Records
+
+Decisões de arquitetura do dublador, no formato curto: **contexto → decisão → consequências**. Um ADR aceito não é editado; se a decisão mudar, um novo ADR o substitui e o antigo é marcado como `Substituído por ADR-XXXX`.
+
+| ADR | Decisão | Status |
+|---|---|---|
+| [0001](0001-escopo-e-idiomas.md) | Escopo: EN→PT-BR, idiomas parametrizados | Aceito |
+| [0002](0002-vozes-hibridas.md) | Vozes híbridas: clonagem + fallback por gênero | Aceito |
+| [0003](0003-separacao-voz-fundo.md) | Separar voz do fundo em vez de descartar o áudio original | Aceito |
+| [0004](0004-sincronia-time-fit.md) | Sincronia por segmento (time-fit), sem lip-sync | Aceito |
+| [0005](0005-traducao-por-llm-local.md) | Tradução por LLM local configurável | Aceito (ajustado por 0015) |
+| [0006](0006-uso-pessoal-e-licencas.md) | Uso pessoal; modelos NC aceitos; código Apache-2.0 | Aceito |
+| [0007](0007-venv-por-estagio-e-contrato-de-arquivos.md) | Um venv por estágio, contrato de arquivos, execução sequencial | Aceito |
+| [0008](0008-revisao-opcional.md) | Revisão humana opcional após a tradução | Aceito |
+| [0009](0009-formato-de-saida.md) | Saída MKV multi-faixa com legendas | Aceito |
+| [0010](0010-cli.md) | CLI Typer com seletor fzf opcional | Aceito |
+| [0011](0011-armazenamento.md) | Código em /home, modelos e trabalho no SSD, tudo configurável | Substituído (0014) |
+| [0012](0012-idioma-da-documentacao-e-codigo.md) | Documentação em PT-BR, código em inglês | Aceito |
+| [0013](0013-escopo-de-validacao-v1.md) | V1 validada com vídeos curtos, suporte até 1 h | Aceito |
+| [0014](0014-tudo-no-ssd.md) | Cache do uv, venvs e modelos no SSD; só o código no /home | Aceito |
+| [0015](0015-tradutor-qualidade-instruct.md) | Opção de qualidade do tradutor: Qwen3 30B-A3B Instruct | Aceito |

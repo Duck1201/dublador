@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+**/.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local configuration (copy from config.example.toml)
+config.toml
+.env
+
+# Model weights — never committed; each user downloads them and accepts their licenses
+models/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.gguf
+*.onnx
+*.bin
+
+# Media and pipeline work directories
+work/
+output/
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.srt
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

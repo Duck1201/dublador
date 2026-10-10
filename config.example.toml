@@ -1,0 +1,27 @@
+# Copy to config.toml (git-ignored) and adjust. See docs/ARCHITECTURE.md#configuração.
+# Precedence: CLI flags > environment variables > config.toml > defaults.
+
+[paths]
+work_dir   = "~/dublador/work"     # env: DUBLADOR_WORK_DIR
+models_dir = "~/dublador/models"   # env: DUBLADOR_MODELS_DIR
+venvs_dir  = "~/dublador/venvs"    # env: DUBLADOR_VENVS_DIR — keep on the same filesystem as UV_CACHE_DIR
+
+[languages]
+source = "en"
+target = "pt-BR"
+
+[translate]
+model = "gemma4:e4b-it-qat"        # provisional default, see docs/MODELS.md
+ollama_url = "http://localhost:11434"
+
+[fit]
+max_speedup = 1.25
+max_fit_iterations = 2
+
+[output]
+format = "mkv"                     # mkv | mp4
+
+[gpu]
+# RX 7600 (gfx1102) is not on ROCm's official support list, but PyTorch/CTranslate2 ROCm wheels ship gfx1102 kernels.
+# Leave unset; set to "11.0.0" (run as gfx1100) only if a library fails with an unsupported-arch error.
+# hsa_override_gfx_version = "11.0.0"
