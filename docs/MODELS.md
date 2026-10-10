@@ -66,11 +66,15 @@ Exemplo de `pyproject.toml` por estágio (uv):
 ```toml
 [project]
 requires-python = ">=3.12,<3.14"
-dependencies = ["torch==2.11.0", "torchaudio==2.11.0", "torchcodec==0.11.*"]
+# triton-rocm (pytorch-triton-rocm no índice rocm6.4) precisa ser dependência direta:
+# o torch ROCm depende dele, ele só existe no índice do PyTorch, e o uv só aplica
+# `sources` a dependências diretas. Sem isso a resolução falha. [V 2026-10-10]
+dependencies = ["torch==2.11.0", "torchaudio==2.11.0", "torchcodec==0.11.*", "triton-rocm"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-rocm" }
 torchaudio = { index = "pytorch-rocm" }
+triton-rocm = { index = "pytorch-rocm" }
 
 [[tool.uv.index]]
 name = "pytorch-rocm"
@@ -362,11 +366,11 @@ Desktop (Xorg/Wayland) consome ~0,3–0,8 GB da mesma GPU — descontar.
 Executar na máquina real antes de fixar escolhas. Marcar cada item com resultado + data.
 
 **Ambiente**
-- [ ] Mover `UV_CACHE_DIR`, `HF_HOME`, `TORCH_HOME` para o SSD; `uv cache clean` do cache antigo se necessário.
-- [ ] Venv baseline `torch==2.11.0+rocm7.2`: `torch.cuda.is_available()`, `torch.cuda.get_device_name()`, `torch.cuda.get_arch_list()` contém `gfx1102`; matmul fp16/bf16 e `conv1d` (MIOpen) **sem** `HSA_OVERRIDE_GFX_VERSION`. Repetir com `=11.0.0` só se falhar.
-- [ ] Mesmo teste com `torch==2.8.0+rocm6.4` (venv WhisperX).
-- [ ] Job de estresse de 30 min na GPU (kernel PREEMPT_RT): sem travamentos/resets do amdgpu (`journalctl -k`).
-- [ ] `torchcodec` 0.11 carrega com o ffmpeg do Debian 13 (`import torchcodec; AudioDecoder(...)`).
+- [x] Mover `UV_CACHE_DIR`, `HF_HOME`, `TORCH_HOME` para o SSD — 2026-10-10: `config.toml` local aponta para `~/SSD/Extras/dublador/` e o `dublador setup`/runner exportam as variáveis. Com `UV_LINK_MODE=clone` (btrfs), as duas stacks de torch somam 27 GB no `du` do cache e 27 GB no dos venvs, mas o SSD perdeu só **11 GB**: o reflink funciona e os venvs quase não custam disco extra. O cache antigo em `~/.cache/uv` não foi tocado.
+- [x] Venv baseline `torch==2.11.0+rocm7.2` (Python 3.12.13, HIP 7.2.26015) — 2026-10-10, **sem** `HSA_OVERRIDE_GFX_VERSION`: `is_available()` ok, `gcnArchName` = `gfx1102`, `gfx1102` em `get_arch_list()`, 7,98 GB de VRAM (7,94 livres). Matmul fp16/bf16/fp32 corretos (erro relativo < 0,3 %), ~25 TFLOPS fp16 e bf16 em 4096² depois de aquecer (a 1ª chamada é bem mais lenta); conv1d/conv2d MIOpen corretos (a 1ª conv1d levou ~13 s compilando kernels); SDPA bf16 ok (aviso: "Mem Efficient attention" é experimental no ROCm sem `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1`); alocação de 6 GB ok. Override não foi necessário.
+- [x] Mesmo teste com `torch==2.8.0+rocm6.4` (HIP 6.4.43482) — 2026-10-10: tudo ok sem override, desempenho igual ao 7.2 (~25 TFLOPS fp16/bf16, mesma conv1d). `torchaudio.load` 2.8 falha por falta de backend ("Couldn't find appropriate backend"): no venv do WhisperX, ler áudio pelo `torchcodec`/ffmpeg ou instalar `soundfile`.
+- [~] Job de estresse de 30 min na GPU (kernel PREEMPT_RT): sem travamentos/resets do amdgpu (`journalctl -k`) — 2026-10-10 01:06–01:36: 30 min de matmul fp16 + conv1d contínuos no stack 7.2, 14 532 iterações, ritmo estável do início ao fim, sem erro nem travamento no processo. Falta conferir o log do kernel nesse intervalo (o usuário não está em `adm`/`systemd-journal`; precisa de `sudo journalctl -k`).
+- [x] `torchcodec` carrega com o ffmpeg 7.1 do Debian 13 — 2026-10-10: `AudioDecoder` lê WAV 48 kHz estéreo com `torchcodec` 0.11.1 (stack 7.2) e 0.7.0 (stack 6.4); `torchaudio.load` 2.11 também funciona (usa o torchcodec por baixo).
 
 **ASR**
 - [ ] CTranslate2 ROCm: baixar `rocm-python-wheels-Linux.zip` do release v4.8.2, testar `ctranslate2.get_cuda_device_count()`/faster-whisper (a) com ROCm 7.2 em `/opt/rocm`, (b) com `LD_LIBRARY_PATH` apontando para `torch/lib` do torch rocm7.2. Se nenhum funcionar → CPU `int8`, medir tempo para 10 min de áudio.
