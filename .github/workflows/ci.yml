@@ -1,9 +1,8 @@
 name: CI
 
+# Every branch push runs CI; there are no fork PRs, so pull_request would only duplicate runs.
 on:
   push:
-    branches: [main]
-  pull_request:
 
 jobs:
   check:
