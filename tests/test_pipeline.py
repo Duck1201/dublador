@@ -60,6 +60,7 @@ def test_full_run_produces_dubbed_mkv(
     manifest, log = run(video, config, fake_pipeline(), output=output)
     assert set(statuses(manifest).values()) == {"done"}
     assert "mixing" in log
+    assert manifest.data["stages"]["mix"]["warnings"] == ["fake mix warning"]
     tracks = audio_streams(output)
     assert [t["tags"]["language"] for t in tracks] == ["por", "eng"]
     assert tracks[0]["disposition"]["default"] == 1
@@ -89,6 +90,7 @@ def test_failure_then_resume_skips_finished_stages(
         "mux": "pending",
     }
     assert manifest.data["stages"]["mix"]["error"] == "mix failed (exit 1): forced failure in mix"
+    assert manifest.data["stages"]["separate"]["warnings"] == []
     assert (
         "library noise" not in (job_dir / "logs" / "mix.log").read_text()
     )  # failed before printing
@@ -168,8 +170,11 @@ def test_cli_run_status_resume(
     assert result.exit_code == 0, result.output
     assert "extract (up to date)" in result.output
     assert output.is_file()
+    assert "report:" in result.output
 
     job_id = next((tmp_path / "work").iterdir()).name
+    report = (tmp_path / "work" / job_id / "report.md").read_text()
+    assert "| mux | done |" in report
     result = runner.invoke(app, ["status", job_id], env=env)
     assert result.exit_code == 0
     assert result.output.count("done") >= 4

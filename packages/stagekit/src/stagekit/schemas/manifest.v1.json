@@ -150,6 +150,12 @@
                 "type": "null"
               }
             ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }

@@ -1,6 +1,6 @@
 """manifest.json: per-stage state of a job, used to skip finished work on resume."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -94,12 +94,16 @@ class Manifest:
         }
         self.save()
 
-    def mark_done(self, name: str, *, model: str | None = None) -> None:
+    def mark_done(
+        self, name: str, *, model: str | None = None, warnings: Sequence[str] = ()
+    ) -> None:
         entry = self.stage(name)
-        entry.update(status="done", finished_at=_now(), model=model, error=None)
+        entry.update(
+            status="done", finished_at=_now(), model=model, error=None, warnings=list(warnings)
+        )
         self.save()
 
-    def mark_failed(self, name: str, error: str) -> None:
+    def mark_failed(self, name: str, error: str, *, warnings: Sequence[str] = ()) -> None:
         entry = self.stage(name)
-        entry.update(status="failed", finished_at=_now(), error=error)
+        entry.update(status="failed", finished_at=_now(), error=error, warnings=list(warnings))
         self.save()

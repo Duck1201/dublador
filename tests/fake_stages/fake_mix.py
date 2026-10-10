@@ -8,6 +8,7 @@ def run(ctx: StageContext) -> None:
     maybe_fail(ctx)
     print("library noise on stdout")  # must not break the JSON-lines protocol
     ctx.progress.log("mixing")
+    ctx.progress.warning("fake mix warning")
     copy_wav(ctx.stage_dir("separate") / "accompaniment.wav", ctx.out_dir / "dub.wav")
     ctx.progress.progress(1, 1)
 

@@ -19,6 +19,7 @@ from dublador.doctor import run_checks
 from dublador.ffmpeg import FfmpegError
 from dublador.jobs import Job, JobError, find_job, list_jobs
 from dublador.manifest import Manifest
+from dublador.report import write_report
 from dublador.runner import PipelineError, open_job, reopen_job, run_pipeline
 from dublador.setup import SetupError, run_setup
 
@@ -69,8 +70,12 @@ def _errors() -> Iterator[None]:
 def _run(job: Job, manifest: Manifest, config: Config) -> None:
     write_snapshot(config, job.dir)
     console.print(f"job [bold]{job.id}[/bold] in {job.dir}")
-    run_pipeline(job, manifest, config, stages.PIPELINE, console)
+    try:
+        run_pipeline(job, manifest, config, stages.PIPELINE, console)
+    finally:
+        report = write_report(Manifest.load(job.manifest_path), job.dir)
     console.print(f"[green]done:[/green] {manifest.output_path}")
+    console.print(f"report: {report}")
 
 
 def _version_callback(value: bool) -> None:

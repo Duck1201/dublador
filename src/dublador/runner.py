@@ -91,26 +91,29 @@ def run_pipeline(
             raise PipelineError(f"{spec.name}: missing inputs: {', '.join(missing)}")
 
         manifest.mark_running(spec.name, inputs_hash=digest, version=spec.resolved_version())
+        warnings: list[str] = []
         try:
             if spec.function is not None:
                 with console.status(f"{spec.name}…"):
                     spec.function(job.dir, manifest, config)
             else:
-                _run_subprocess(spec, job, config, console)
+                _run_subprocess(spec, job, config, console, warnings)
             if not _outputs_present(spec, job, manifest):
                 raise PipelineError(f"{spec.name}: finished without writing its outputs")
         except KeyboardInterrupt:
-            manifest.mark_failed(spec.name, "interrupted")
+            manifest.mark_failed(spec.name, "interrupted", warnings=warnings)
             raise
         except Exception as e:
             message = str(e) if isinstance(e, PipelineError) else f"{spec.name}: {e}"
-            manifest.mark_failed(spec.name, message)
+            manifest.mark_failed(spec.name, message, warnings=warnings)
             raise PipelineError(message) from e
-        manifest.mark_done(spec.name)
+        manifest.mark_done(spec.name, warnings=warnings)
         console.print(f"[green]✓[/green] {spec.name}")
 
 
-def _run_subprocess(spec: StageSpec, job: Job, config: Config, console: Console) -> None:
+def _run_subprocess(
+    spec: StageSpec, job: Job, config: Config, console: Console, warnings: list[str]
+) -> None:
     assert spec.module is not None
     python = spec.python_path(config)
     if not python.exists():
@@ -148,14 +151,16 @@ def _run_subprocess(spec: StageSpec, job: Job, config: Config, console: Console)
         )
         assert proc.stdout is not None
         for line in proc.stdout:
-            _handle_line(line, log, bar, task, console)
+            _handle_line(line, log, bar, task, console, warnings)
         code = proc.wait()
 
     if code != 0:
         raise PipelineError(f"{spec.name} failed (exit {code}): {_last_error(log_path)}")
 
 
-def _handle_line(line: str, log: TextIO, bar: Progress, task: TaskID, console: Console) -> None:
+def _handle_line(
+    line: str, log: TextIO, bar: Progress, task: TaskID, console: Console, warnings: list[str]
+) -> None:
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
@@ -169,7 +174,8 @@ def _handle_line(line: str, log: TextIO, bar: Progress, task: TaskID, console: C
     if kind == "progress":
         bar.update(task, completed=event.get("done", 0), total=event.get("total"))
     elif kind == "warning":
-        console.print(f"[yellow]warning:[/yellow] {event.get('message', '')}")
+        warnings.append(str(event.get("message", "")))
+        console.print(f"[yellow]warning:[/yellow] {warnings[-1]}")
     elif kind == "log":
         console.print(f"[dim]{event.get('message', '')}[/dim]")
 
