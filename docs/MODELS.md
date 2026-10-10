@@ -16,7 +16,7 @@
 | 3 | Diarização | **pyannote `speaker-diarization-community-1`** (pyannote.audio 4.0.x) | pyannote 3.1; DiariZen; NVIDIA Sortformer | CC-BY-4.0 (gated, token HF só no 1º download) | `torchcodec` precisa casar com a versão do torch |
 | 4 | Gênero do falante | **`JaesungHuh/voice-gender-classifier`** (ECAPA-TDNN) + voto por falante | `alefiury/wav2vec2-large-xlsr-53-gender-recognition-librispeech`; `audeering/wav2vec2-large-robust-24-ft-age-gender` (detecta criança); inaSpeechSegmenter | MIT | Só binário M/F; crianças/vozes ambíguas → regra de fallback |
 | 5 | Tradução (Ollama) | **`gemma4:e4b-it-qat`** (provisório) / qualidade: **`qwen3:30b-a3b-instruct-2507-q4_K_M`** | `gemma4:26b-a4b-it-qat`, `translategemma:12b`/`4b` | Gemma ToU / Apache-2.0 | ⚠ O `qwen3:30b-a3b` instalado é o **Thinking-2507** (não dá pra desligar o raciocínio) — puxar o *instruct-2507* |
-| 6 | TTS com clonagem PT-BR | **Qwen3-TTS-12Hz-1.7B-Base** (provisório, decidir no bake-off — ver §6.2) | **FireRedTTS3**, **MOSS-TTS-Local** (duração-alvo), **OmniVoice** (`duration=`), **Chatterbox pt-br**, **dots.tts MF** | Apache-2.0 | Nenhum benchmark público PT-BR; sotaque inglês vazando na clonagem cross-lingual [NV] |
+| 6 | TTS com clonagem PT-BR | **OmniVoice** (`k2-fsa/OmniVoice`), clonando com referência curta de 3–4,5 s ([ADR-0017](adr/0017-tts-omnivoice-e-referencia-curta.md)) | Chatterbox pt-br e Qwen3-TTS (saíram: robóticos e com sotaque), dots.tts MF e F5-TTS pt-br (perderam no bake-off), **FireRedTTS3**, **MOSS-TTS-Local**, **VoxCPM2** | código Apache-2.0; **pesos CC-BY-NC** | Clonar de referência em inglês transfere sotaque; com 3,4 s o sotaque fica aceitável ("MID") |
 | 7 | Banco de vozes fallback | Vozes geradas por **Qwen3-TTS VoiceDesign** + referências de **CML-TTS/MLS pt** (CC-BY-4.0) | Kokoro (`pf_dora`, `pm_alex`, `pm_santa`); Common Voice pt (CC0) | Apache-2.0 / CC-BY-4.0 | Curadoria manual de sotaque BR |
 | 8 | Time-stretch | **Rubber Band** (`rubberband` CLI / `pyrubberband`, modo `--fine`/R3) | `ffmpeg atempo` (fallback), `librosa` | GPL-2.0 (CLI chamado como subprocesso) | Limitar a ~0,80–1,25× para não soar artificial |
 
@@ -66,11 +66,15 @@ Exemplo de `pyproject.toml` por estágio (uv):
 ```toml
 [project]
 requires-python = ">=3.12,<3.14"
-dependencies = ["torch==2.11.0", "torchaudio==2.11.0", "torchcodec==0.11.*"]
+# triton-rocm (pytorch-triton-rocm no índice rocm6.4) precisa ser dependência direta:
+# o torch ROCm depende dele, ele só existe no índice do PyTorch, e o uv só aplica
+# `sources` a dependências diretas. Sem isso a resolução falha. [V 2026-10-10]
+dependencies = ["torch==2.11.0", "torchaudio==2.11.0", "torchcodec==0.11.*", "triton-rocm"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-rocm" }
 torchaudio = { index = "pytorch-rocm" }
+triton-rocm = { index = "pytorch-rocm" }
 
 [[tool.uv.index]]
 name = "pytorch-rocm"
@@ -102,6 +106,7 @@ export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True    # reduz fragmentação
 - `HSA_OVERRIDE_GFX_VERSION=11.0.0` faz o runtime tratar a placa como gfx1100. Funciona na maioria dos relatos de RDNA3, mas Navi 33 tem menos registradores/CU que Navi 31 → kernels gfx1100 podem falhar em casos raros [NV]. Por isso: **primeiro sem override**.
 - hipBLASLt pode avisar "unsupported architecture" e cair para hipBLAS (só perda de desempenho) [NV].
 - MIOpen compila kernels na primeira execução (convoluções do Demucs/wav2vec2/ECAPA) — primeira rodada bem mais lenta; persistir o cache.
+- **`MIOPEN_FIND_MODE=FAST` é essencial** [V 2026-10-10]: no modo padrão o MIOpen faz busca exaustiva e compila kernels para **cada formato novo de entrada**. Com áudio de comprimento variável (o decodificador do TTS recebe um tamanho diferente a cada fala), o Qwen3-TTS levava RTF 23–62; com `FAST`, RTF 1,7–2,1. O runner exporta `MIOPEN_FIND_MODE=FAST` para todos os estágios (a não ser que já esteja definido).
 - `flash-attn` (recomendado por Qwen3-TTS/Qwen3-ASR) não tem wheel ROCm simples para gfx11 → usar `attn_implementation="sdpa"` [NV quanto ao ganho/perda].
 - Kernel **PREEMPT_RT** (`-rt-amd64`): sem relatos específicos encontrados de problemas amdgpu+KFD com RT; testar estabilidade em job longo [NV].
 - `onnxruntime-gpu` é CUDA-only; para ROCm a AMD migrou para o EP MIGraphX → **evitar modelos ONNX na GPU** (MDX-Net `.onnx` rodam em CPU).
@@ -283,7 +288,7 @@ Leitura:
 - dois regimes de referência: **(a) EN direta** e **(b) PT "ponte"** (gerada por VoiceDesign ou vinda do banco do §7);
 - hipótese a testar [NV]: TTS PT-BR nativo seguido de **conversão de voz** para o timbre do falante (Seed-VC, VC do Chatterbox, conversor do OpenVoice v2), como alternativa contra o sotaque.
 
-**Recomendação atual:** manter **Qwen3-TTS** como default provisório até o bake-off. Em todos os modelos: referência de **8–15 s**, um só falante, sem música (stem de voz do estágio 02), normalizada a −20 LUFS.
+**Recomendação atual:** **OmniVoice** com referência curta ([ADR-0017](adr/0017-tts-omnivoice-e-referencia-curta.md)). O resultado do bake-off está nas Tarefas de validação. Para as vozes nativas do banco (§7), a referência continua sendo de 8–15 s, um só falante, sem música e normalizada a −20 LUFS.
 
 Fontes desta rodada: Qwen3-TTS [paper](https://arxiv.org/html/2601.15621v1) · [FireRedTTS3](https://huggingface.co/FireRedTeam/FireRedTTS3) ([paper](https://arxiv.org/abs/2608.17492), [int8](https://huggingface.co/drbaph/FireRedTTS3-int8)) · [MOSS-TTS](https://github.com/OpenMOSS/MOSS-TTS) ([Local](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Local-Transformer)) · [OmniVoice](https://huggingface.co/k2-fsa/OmniVoice) · [dots.tts](https://github.com/rednote-hilab/dots.tts) · [VoxCPM2](https://huggingface.co/openbmb/VoxCPM2) · [Chatterbox pt-br](https://huggingface.co/ResembleAI/Chatterbox-Multilingual-pt-br) · [Fish S2 Pro](https://huggingface.co/fishaudio/s2-pro) · [Higgs v3](https://huggingface.co/bosonai/higgs-audio-v3-tts-4b) · [ZONOS2](https://huggingface.co/Zyphra/ZONOS2) · [IndexTTS-2.5](https://huggingface.co/IndexTeam/IndexTTS-2.5) · [Gradium WER benchmark](https://gradium.ai/content/tts-wer-benchmark-2026) · [set MiniMax-Multilingual](https://arxiv.org/pdf/2505.07916) · Qwen3-TTS em ROCm: [Strix Halo](https://tinycomputers.io/posts/qwen-tts-on-amd-strix-halo.html), [qwen3-tts-hip](https://github.com/piedshag/qwen3-tts-hip).
 
@@ -332,7 +337,7 @@ Valores estimados [NV] — medir com `rocm-smi --showmeminfo vram` / `torch.cuda
 | 4 Gênero | ECAPA (Jaesung) | < 0,5 GB | fp32 | ✅ (ou CPU) |
 | 5 Tradução | gemma4:e4b-it-qat | ~6–7 GB (pesos 6,1 GB + KV q8_0) | Q4_0 | ✅ |
 | 5-alt | qwen3:30b-a3b-instruct-2507 | 8 GB GPU + ~12 GB RAM | Q4_K_M | ⚠ offload (32 GB RAM ok) |
-| 6 TTS | Qwen3-TTS 1.7B | 4–6 GB | bf16 | ✅ |
+| 6 TTS | OmniVoice 0,6 B | 2,7 GB [V] | fp16 | ✅ |
 | 6-alt | OmniVoice / Chatterbox / XTTS | 2–4 GB | fp16/fp32 | ✅ |
 
 Desktop (Xorg/Wayland) consome ~0,3–0,8 GB da mesma GPU — descontar.
@@ -362,29 +367,41 @@ Desktop (Xorg/Wayland) consome ~0,3–0,8 GB da mesma GPU — descontar.
 Executar na máquina real antes de fixar escolhas. Marcar cada item com resultado + data.
 
 **Ambiente**
-- [ ] Mover `UV_CACHE_DIR`, `HF_HOME`, `TORCH_HOME` para o SSD; `uv cache clean` do cache antigo se necessário.
-- [ ] Venv baseline `torch==2.11.0+rocm7.2`: `torch.cuda.is_available()`, `torch.cuda.get_device_name()`, `torch.cuda.get_arch_list()` contém `gfx1102`; matmul fp16/bf16 e `conv1d` (MIOpen) **sem** `HSA_OVERRIDE_GFX_VERSION`. Repetir com `=11.0.0` só se falhar.
-- [ ] Mesmo teste com `torch==2.8.0+rocm6.4` (venv WhisperX).
-- [ ] Job de estresse de 30 min na GPU (kernel PREEMPT_RT): sem travamentos/resets do amdgpu (`journalctl -k`).
-- [ ] `torchcodec` 0.11 carrega com o ffmpeg do Debian 13 (`import torchcodec; AudioDecoder(...)`).
+- [x] Mover `UV_CACHE_DIR`, `HF_HOME`, `TORCH_HOME` para o SSD — 2026-10-10: `config.toml` local aponta para `~/SSD/Extras/dublador/` e o `dublador setup`/runner exportam as variáveis. Com `UV_LINK_MODE=clone` (btrfs), as duas stacks de torch somam 27 GB no `du` do cache e 27 GB no dos venvs, mas o SSD perdeu só **11 GB**: o reflink funciona e os venvs quase não custam disco extra. O cache antigo em `~/.cache/uv` não foi tocado.
+- [x] Venv baseline `torch==2.11.0+rocm7.2` (Python 3.12.13, HIP 7.2.26015) — 2026-10-10, **sem** `HSA_OVERRIDE_GFX_VERSION`: `is_available()` ok, `gcnArchName` = `gfx1102`, `gfx1102` em `get_arch_list()`, 7,98 GB de VRAM (7,94 livres). Matmul fp16/bf16/fp32 corretos (erro relativo < 0,3 %), ~25 TFLOPS fp16 e bf16 em 4096² depois de aquecer (a 1ª chamada é bem mais lenta); conv1d/conv2d MIOpen corretos (a 1ª conv1d levou ~13 s compilando kernels); SDPA bf16 ok (aviso: "Mem Efficient attention" é experimental no ROCm sem `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1`); alocação de 6 GB ok. Override não foi necessário.
+- [x] Mesmo teste com `torch==2.8.0+rocm6.4` (HIP 6.4.43482) — 2026-10-10: tudo ok sem override, desempenho igual ao 7.2 (~25 TFLOPS fp16/bf16, mesma conv1d). `torchaudio.load` 2.8 falha por falta de backend ("Couldn't find appropriate backend"): no venv do WhisperX, ler áudio pelo `torchcodec`/ffmpeg ou instalar `soundfile`.
+- [x] Job de estresse de 30 min na GPU (kernel PREEMPT_RT): sem travamentos/resets do amdgpu (`journalctl -k`) — 2026-10-10 01:06–01:36: 30 min de matmul fp16 + conv1d contínuos no stack 7.2, 14 532 iterações, ritmo estável do início ao fim, sem erro nem travamento no processo; `journalctl -k` do intervalo sem nenhuma mensagem de amdgpu/KFD/reset/timeout (conferido pelo usuário).
+- [x] `torchcodec` carrega com o ffmpeg 7.1 do Debian 13 — 2026-10-10: `AudioDecoder` lê WAV 48 kHz estéreo com `torchcodec` 0.11.1 (stack 7.2) e 0.7.0 (stack 6.4); `torchaudio.load` 2.11 também funciona (usa o torchcodec por baixo).
 
 **ASR**
-- [ ] CTranslate2 ROCm: baixar `rocm-python-wheels-Linux.zip` do release v4.8.2, testar `ctranslate2.get_cuda_device_count()`/faster-whisper (a) com ROCm 7.2 em `/opt/rocm`, (b) com `LD_LIBRARY_PATH` apontando para `torch/lib` do torch rocm7.2. Se nenhum funcionar → CPU `int8`, medir tempo para 10 min de áudio.
+- [x] CTranslate2 ROCm — 2026-10-10: a opção (b) funciona. O wheel ROCm do release 4.8.2 precisa de `libamdhip64.so.7`, `libhipblas.so.3` e `libhiprand.so.1`; o `torch 2.11+rocm7.2` traz os mesmos arquivos sem o sufixo de versão (SONAMEs iguais), então basta um diretório de symlinks + `LD_LIBRARY_PATH`. É obrigatório `CT2_CUDA_ALLOCATOR=cub_caching` (com o alocador padrão: OOM, `hipErrorIllegalAddress` ou travamento). `large-v3` em lote (`BatchedInferencePipeline`, lote 8/16): **GPU fp16 RTF 0,07** vs **CPU int8 RTF 0,48**, mesmo texto. **Decisão (usuário, 2026-10-10): o M1 transcreve na CPU int8** só com pacotes do PyPI e o torch 2.8 que o WhisperX pede; a GPU é a otimização do issue #19. `faster-whisper` 1.2.1 quebra com `av` ≥ 16 fora do WhisperX (que lê o áudio com ffmpeg).
+- [~] WhisperX no estágio `transcribe` (2026-10-10, sem diarização): `large-v3` CPU int8 em lote + alinhamento wav2vec2 na GPU levam ~90 s para 70 s de áudio, contando a carga dos modelos. O venv usa `torch==2.8.0+rocm6.4`, `torchvision==0.23.0` do índice rocm6.4 e anula o `triton` de CUDA que o WhisperX puxa (`override-dependencies`). A transcrição em lote devolve janelas de VAD de até 30 s, às vezes sem pontuação; o estágio as divide por frase, pausa (≥ 0,6 s) e duração máxima (12 s) usando os tempos por palavra.
 - [ ] WhisperX completo (transcrição + align + diarização) num vídeo de 10 min: WER manual em 2 min, precisão de bordas de palavra (±100 ms) por amostragem.
 - [ ] Qwen3-ASR-1.7B + ForcedAligner no mesmo trecho (sdpa, bf16): WER, VRAM, tempo; comparar com WhisperX.
 
 **Separação / diarização / gênero**
+- [~] BS-RoFormer-1297 na RX 7600 (estágio `separate`, 2026-10-10): pico de **6,3 GB** de VRAM (com o desktop); em fp32 levou 3,2× o tempo real; com `use_autocast` (fp16) cai para ~1,0× (60 s de áudio em ~70 s com a carga do modelo), sem diferença mensurável nos stems (73 dB entre fp16 e fp32 em fala sintética sobre música; SDR da voz igual, 22,7 dB). `overlap = 2` leva a ~0,6×, também sem perda nesse teste. O pacote `audio-separator` 0.47 importa `audioread` sem declará-lo, e o extra `[cpu]` traz o `onnxruntime` de CPU. Falta a avaliação de qualidade com o vídeo de referência (SFX/multidão).
 - [ ] BS-RoFormer-1297 vs Mel-RoFormer Kim vs htdemucs_ft em 3 trechos (diálogo+música, diálogo+explosões, multidão): ouvir vazamento de SFX na voz e de voz no fundo; medir VRAM e tempo para 1 h com `--chunk_duration`.
 - [ ] pyannote community-1 na GPU: DER aproximado num trecho anotado à mão (5 min, 3+ falantes); tempo para 1 h.
 - [ ] Classificador de gênero: acurácia por falante em ≥ 20 falantes conhecidos (incluir vozes femininas graves, masculinas agudas, criança).
 
 **Tradução (Ollama)**
 - [x] `ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M` — 2026-10-09: instalado (18 GB). O `ollama show` lista a capability `thinking`, mas na prática a resposta vem sem raciocínio (`thinking` vazio); ~23 tok/s no Vulkan com offload. Opcionais ainda não baixados: `gemma4:26b-a4b-it-qat`, `translategemma:12b`.
-- [ ] Confirmar que `"think": false` realmente desliga o raciocínio no `gemma4:e4b-it-qat` (sem bloco de pensamento na resposta, tok de saída reduzidos).
-- [~] Confirmar `keep_alive: 0` / `ollama stop` libera a VRAM (checar `ollama ps` e `rocm-smi`) antes do estágio de TTS — 2026-10-09: com `keep_alive: 0` o `ollama ps` fica vazio logo após a resposta; falta conferir no `rocm-smi`.
+- [x] Confirmar que `"think": false` realmente desliga o raciocínio no `gemma4:e4b-it-qat` — 2026-10-10: com `think: false` o campo `thinking` vem vazio e a mesma resposta usa 279 tokens (8,4 s) contra 605 tokens e 1 296 caracteres de raciocínio (14 s) com `think: true`.
+- [x] Confirmar `keep_alive: 0` / `ollama stop` libera a VRAM (checar `ollama ps` e `rocm-smi`) antes do estágio de TTS — 2026-10-10: no `rocm-smi` a VRAM volta ao nível do desktop (~1 GB) em ~0,2 s após `/api/generate` com `keep_alive: 0`, mas o `ollama ps` já fica vazio antes disso e, numa execução, ainda havia 5 GB ocupados logo depois. O estágio `translate` sempre descarrega o modelo e espera ele sair do `/api/ps`; os estágios de GPU seguintes devem conferir a VRAM livre antes de carregar o modelo.
+- [x] Estágio `translate` v0 com `gemma4:e4b-it-qat` (2026-10-10): 10 segmentos em ~20 s, JSON válido de primeira, PT-BR natural ("você", "placa de vídeo"). O modelo tende a responder em minúsculas quando o contexto está em minúsculas, mesmo pedindo o contrário no prompt; o estágio capitaliza o início das frases por código.
 - [ ] Rodar o **protocolo de benchmark** (§5) nos 4 modelos; comparar Ollama **Vulkan vs ROCm** (tok/s) para o modelo vencedor.
 
 **TTS**
+- [~] Qwen3-TTS-12Hz-1.7B-Base no estágio `synthesize` (2026-10-10, bf16, SDPA): carrega em ~100 s na 1ª vez, pico de **5,0 GB** de VRAM, saída 24 kHz, RTF ~1,7–2,1 com `MIOPEN_FIND_MODE=FAST` (sem isso, 23–62). As falas saem ~20–40 % mais longas que a janela original (ex.: 3,9 s para 3,2 s), como esperado sem controle de duração (M3). O pacote `qwen-tts` 0.1.1 fixa `transformers==4.57.3` e avisa que o SoX não está instalado (inofensivo). Na pipeline, o pico de VRAM do sistema chegou a **7,3 GB** dos 8 GB (modelo + caches + desktop): cabe, com pouca folga. Inteligibilidade: o Whisper large-v3 em modo `pt` transcreveu a faixa dublada praticamente igual ao texto traduzido (fala sintética do espeak como referência de voz).
+- [~] Qwen3-TTS: **falha grave em 2026-10-10.** No job `mlgoogle`, 2 de 4 segmentos não emitiram o token de fim e geraram até o limite (655 s de áudio, ~24 min cada). O KV cache encheu os 8 GB e o gnome-shell caiu (`Failed to pin framebuffer with error -12`). O usuário também avaliou a voz como robotizada. O modelo saiu do estágio ([ADR-0016](adr/0016-tts-padrao-chatterbox-pt-br.md)), e o estágio passou a ter um teto de geração por segmento.
+- [~] Chatterbox Multilingual V3 + finetune pt-br no estágio `synthesize` (2026-10-10, fp32, commit `5de7a54a` do GitHub com `torch 2.11.0+rocm7.2`): os pesos `t3_pt_br` e `s3gen_v3` carregam nas classes do master (no S3Gen faltam só os buffers de mel do tokenizer, recalculados no `__init__`). Carrega em ~10 s, pico de **3,6 GB** de VRAM, saída 24 kHz, ~28 tokens/s (RTF ~1,4). Referência EN com `cfg_weight` 0 / 0,3 / 0,5: a fala sai 2–2,5× mais longa que a janela original no cfg 0 e um pouco menos com cfg maior (ex.: seg de 4,44 s → 11,1 / 7,8 / 7,2 s). Nenhum segmento atingiu o teto. **Ritmo:** o falante original do teste fala 21 caracteres/s; com `cfg_weight=0` o Chatterbox sai a 9,2 caracteres/s (≈0,45×, o usuário ouviu como "0,5x"). Grade testada (caracteres/s no total / só na fala): cfg 0,5 → 11,2/13,2; cfg 0,7 → 11,9/14,3; cfg 1,0 + exaggeration 0,8 → 12,1/14,5. O ritmo satura em ~14 caracteres/s de fala, que é o normal do PT-BR. O padrão ficou `cfg_weight=0.7`, e o estágio corta o silêncio no começo e no fim de cada segmento; o resto da diferença é trabalho do `fit` (M3). O usuário achou "bem melhor" que o Qwen3-TTS, mas ainda não bom.
+- [x] **Bake-off rápido de 2026-10-10** (4 frases: abertura, frase técnica, bronca, frase conversada; julgamento de ouvido feito pelo usuário; WER com o Whisper large-v3 em PT). Referências: mulher BR (amostra da ResembleAI, cortada em 9,3 s), dois narradores do CML-TTS pt (LibriVox, sotaque BR não confirmado) e o palestrante em inglês (9,2 s). Os 3 modelos rodaram em venvs descartáveis com `torch 2.11.0+rocm7.2`.
+  - **OmniVoice 0.2.1** (fp16): WER 0 % nas vozes nativas e na voice design, 5,5 % no clone do palestrante; pico de 2,7 GB; ~25 s por voz (voice design: ~8 s). Avaliação: nativas "MID" a "MID-BOM"; clone do palestrante com **sotaque forte**.
+  - **dots.tts MF 0.3.1** (bf16, sem `optimize`): WER 1,8–3,6 % nas nativas e 12,7 % no clone; pico de **5,8 GB** no PyTorch, que com o desktop chegou a 7,6 dos 8 GB (só terminou com `set_per_process_memory_fraction`). Avaliação: sotaque forte ou ruim. Descartado.
+  - **F5-TTS pt-br** (`firstpixel`, config `F5TTS_Base`): WER 5,5–18 %; pico de 1,9 GB. Precisa do `torchcodec` +cpu do índice do PyTorch (a wheel do PyPI é ligada ao CUDA 13). Avaliação: robótico. Descartado.
+  - **Salvar a clonagem no OmniVoice:** com a referência do palestrante cortada em **3,4 s** em fronteira de palavra, a avaliação ficou "MID". Com 5,4 s ficou "rápido e bugado", e com `guidance_scale` 3,5 (com referência de 3,4 s ou de 9 s) ficou "bugado". Daí a ADR-0017.
+  - Kokoro (`pf_dora`, `pm_alex`, `pm_santa`), direto e como referência do Chatterbox: ruim. O LSTM do Kokoro falha no MIOpen da gfx1102 (`miopenStatusUnknownError`), então ele só roda na CPU.
 - [ ] Instalar e gerar as mesmas 30 frases PT-BR (com nasais, "tch/dj", números, siglas, nomes próprios em inglês) com a **shortlist do §6.2** (Qwen3-TTS, FireRedTTS3, MOSS-TTS-Local, OmniVoice, Chatterbox pt-br, dots.tts MF) — usando **a mesma referência em inglês** e **uma referência PT-BR**.
 - [ ] Avaliar: sotaque BR (nota 1–5, cego), similaridade de voz (ECAPA cosine ref×saída), inteligibilidade (WER com Whisper em PT), artefatos/alucinações (palavras puladas/repetidas), VRAM, RTF.
 - [ ] OmniVoice (`duration=`) e MOSS-TTS (`tokens=`): precisão da duração-alvo (erro médio em s) e naturalidade quando a duração alvo é apertada (−15 %).

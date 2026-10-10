@@ -42,24 +42,26 @@ Resultado: [`docs/RESEARCH.md`](docs/RESEARCH.md). Nenhum achado contradiz a arq
 
 Resultado provisório: [`docs/MODELS.md`](docs/MODELS.md), com um padrão por estágio. Para fechar esta etapa, falta:
 
-- [ ] **Preparar o ambiente no SSD**: cache do `uv`, venvs e modelos ([ADR-0014](docs/adr/0014-tudo-no-ssd.md)).
-- [ ] **Validar o ROCm** com o `torch` ROCm na RX 7600, sem `HSA_OVERRIDE_GFX_VERSION`.
-- [ ] **Decidir o motor de ASR**: WhisperX na GPU (CTranslate2 ROCm), WhisperX na CPU ou Qwen3-ASR.
+- [x] **Preparar o ambiente no SSD**: cache do `uv`, venvs e modelos ([ADR-0014](docs/adr/0014-tudo-no-ssd.md)). → [#8](https://github.com/Duck1201/dublador/issues/8)
+- [x] **Validar o ROCm** com o `torch` ROCm na RX 7600, sem `HSA_OVERRIDE_GFX_VERSION`: os dois stacks (2.11+rocm7.2 e 2.8+rocm6.4) funcionam sem override e passaram por 30 min de estresse sem erro no kernel (resultados no [`MODELS.md`](docs/MODELS.md#tarefas-de-validação)). → [#10](https://github.com/Duck1201/dublador/issues/10)
+- [x] **Decidir o motor de ASR**: WhisperX com o Whisper na CPU (int8, em lote) e alinhamento na GPU no M1; a GPU para o Whisper funciona e fica como otimização ([#19](https://github.com/Duck1201/dublador/issues/19)). → [#13](https://github.com/Duck1201/dublador/issues/13)
 - [ ] **Comparar os TTS** (a etapa mais aberta): a pesquisa ampliada está concluída e a shortlist tem 6 modelos ([MODELS.md §6.2](docs/MODELS.md#62-shortlist-do-bake-off-provisória)). Falta o teste comparativo com as mesmas frases PT-BR e referência EN e PT, avaliando sotaque (teste cego), similaridade de voz, inteligibilidade, VRAM e controle de duração.
 - [ ] **Rodar o benchmark do tradutor**: `gemma4:e4b-it-qat` contra `qwen3:30b-a3b-instruct-2507-q4_K_M` ([ADR-0015](docs/adr/0015-tradutor-qualidade-instruct.md)).
-- [ ] **Escolher o vídeo de referência** curto (5–10 min, 2–3 falantes, com música), que será usado em todos os testes.
+- [ ] **Escolher o vídeo de referência** curto (5–10 min, 2–3 falantes, com música), que será usado em todos os testes. → [#11](https://github.com/Duck1201/dublador/issues/11)
 
 A lista completa de testes está em [MODELS.md › Tarefas de validação](docs/MODELS.md#tarefas-de-validação). Esta etapa termina quando cada estágio tiver um modelo **testado na máquina**, e não só pesquisado.
 
-### 3. Implementação — ⏳ não iniciada
+### 3. Implementação — 🔄 planejada, roda em paralelo à etapa 2
 
-Em marcos incrementais. Cada marco termina com o vídeo de referência sendo processado de ponta a ponta.
+Em marcos incrementais. Cada marco termina com o vídeo de referência sendo processado de ponta a ponta. O M0 não depende de modelos e começa já; o M1 usa os defaults provisórios do [`MODELS.md`](docs/MODELS.md) atrás de backends trocáveis, então o bake-off de TTS e a decisão de ASR trocam só o backend do estágio.
+
+Os tickets ficam no GitHub: mapa do [M0 (#1)](https://github.com/Duck1201/dublador/issues/1), mapa do [M1 (#2)](https://github.com/Duck1201/dublador/issues/2) e resumo de [M2–M6 (#3)](https://github.com/Duck1201/dublador/issues/3), que serão detalhados quando o marco anterior fechar.
 
 | Marco | Entrega | Pronto quando |
 |---|---|---|
 | **M0 — Fundação** | Esqueleto do repositório, `config.toml`, `dublador doctor` e `dublador setup`, contrato de arquivos e `manifest.json` | `doctor` aponta GPU, ffmpeg, Ollama e espaço em disco corretamente |
-| **M1 — Esqueleto ponta a ponta** | `extract → separate → transcribe → translate → synthesize → mix → mux`, com **uma única voz** e sem ajuste de tempo | O vídeo de referência sai como MKV dublado, ainda que fora de sincronia |
-| **M2 — Falantes** | `diarize` + `speakers` (gênero por falante, trechos de referência), clonagem com fallback para o banco por gênero | Cada ator tem uma voz própria e consistente |
+| **M1 — Esqueleto ponta a ponta** | `extract → separate → transcribe → speakers (v0) → translate → synthesize → mix → mux`, com **uma única voz** (clonada de um trecho de referência, sem diarização) e sem ajuste de tempo | O vídeo de referência sai como MKV dublado, ainda que fora de sincronia |
+| **M2 — Falantes** | `diarize` + `speakers` com vários falantes (gênero por falante, trechos de referência), clonagem com fallback para o banco por gênero | Cada ator tem uma voz própria e consistente |
 | **M3 — Sincronia** | Orçamento em sílabas, N candidatos de tradução, `fit` (VAD, time-stretch, silêncio) e loop `shorten` | Nenhuma fala invade a seguinte; `report.md` lista os overflows |
 | **M4 — Mixagem e saída** | Atenuação do resíduo de voz, volume por clipe, loudness/limiter, legendas EN e PT-BR | Sem inglês audível por baixo da dublagem; legendas sincronizadas |
 | **M5 — Revisão e retomada** | `--review` com `review.yaml`, cache por segmento, `resume`, `status`, `clean` | Editar uma fala e retomar refaz só aquela fala |

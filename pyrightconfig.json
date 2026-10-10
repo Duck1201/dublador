@@ -1,0 +1,7 @@
+{
+  "include": ["src", "tests", "packages/stagekit"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "standard"
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/synthesis/v1",
+  "title": "Synthesized speech per segment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "backend",
+    "sample_rate",
+    "segments"
+  ],
+  "properties": {
+    "schema": {
+      "const": "synthesis/v1"
+    },
+    "backend": {
+      "type": "string"
+    },
+    "sample_rate": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "duration",
+          "input_hash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^seg_[0-9]{4,}$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/]",
+            "description": "Path relative to the job directory"
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0
+          },
+          "input_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

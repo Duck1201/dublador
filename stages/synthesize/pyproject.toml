@@ -1,0 +1,45 @@
+[project]
+name = "dublador-stage-synthesize"
+version = "0.1.0"
+description = "dublador stage 07: pt-BR speech synthesis with voice cloning (pluggable TTS backend)"
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "dublador-stagekit",
+    "numpy",
+    "soundfile>=0.12",
+    "omnivoice==0.2.1",
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    # Needed by the ROCm torch wheel and only on the PyTorch index; uv applies
+    # `sources` to direct dependencies only (docs/MODELS.md).
+    "triton-rocm",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/synthesize"]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+override-dependencies = [
+    # Only omnivoice's demo app uses gradio; never install it.
+    "gradio; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+dublador-stagekit = { path = "../../packages/stagekit", editable = true }
+torch = { index = "pytorch-rocm" }
+torchaudio = { index = "pytorch-rocm" }
+triton-rocm = { index = "pytorch-rocm" }
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.2"
+explicit = true

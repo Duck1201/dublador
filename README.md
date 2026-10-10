@@ -2,7 +2,7 @@
 
 Pipeline de IA **100% local** para dublar vídeos de **inglês para português brasileiro**, a partir de uma CLI no Linux.
 
-> **Status:** em planejamento — ainda não há código. Esta documentação registra o escopo, a arquitetura e as decisões tomadas antes da implementação.
+> **Status:** em implementação (marco M0, fundação). Ainda não dubla nada; veja o [`plan.md`](plan.md) para o andamento.
 
 ## O que ele faz
 

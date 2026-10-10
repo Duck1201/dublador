@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/translation/v1",
+  "title": "Translated segments",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "model",
+    "source_language",
+    "target_language",
+    "segments"
+  ],
+  "properties": {
+    "schema": {
+      "const": "translation/v1"
+    },
+    "model": {
+      "type": "string"
+    },
+    "source_language": {
+      "type": "string"
+    },
+    "target_language": {
+      "type": "string"
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "start",
+          "end",
+          "speaker",
+          "source_text",
+          "text",
+          "input_hash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^seg_[0-9]{4,}$"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": "number",
+            "minimum": 0
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^SPK_[0-9]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_text": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "input_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

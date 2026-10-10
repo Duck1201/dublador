@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/speakers/v1",
+  "title": "Speakers, gender and voice strategy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "speakers"
+  ],
+  "properties": {
+    "schema": {
+      "const": "speakers/v1"
+    },
+    "speakers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "speech_seconds",
+          "gender",
+          "gender_confidence",
+          "strategy",
+          "voice",
+          "reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SPK_[0-9]{2,}$"
+          },
+          "speech_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female",
+              "unknown"
+            ]
+          },
+          "gender_confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy": {
+            "enum": [
+              "clone",
+              "bank"
+            ]
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Voice bank id when strategy is bank"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "start",
+                  "end",
+                  "text"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[^/]",
+                    "description": "Path relative to the job directory"
+                  },
+                  "start": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

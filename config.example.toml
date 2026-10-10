@@ -1,10 +1,14 @@
 # Copy to config.toml (git-ignored) and adjust. See docs/ARCHITECTURE.md#configuração.
+# Lookup: $DUBLADOR_CONFIG, then ./config.toml, then $XDG_CONFIG_HOME/dublador/config.toml.
+# Sections other than the ones below (e.g. [synthesize]) are stage settings, passed through to the stages.
 # Precedence: CLI flags > environment variables > config.toml > defaults.
 
 [paths]
 work_dir   = "~/dublador/work"     # env: DUBLADOR_WORK_DIR
 models_dir = "~/dublador/models"   # env: DUBLADOR_MODELS_DIR
-venvs_dir  = "~/dublador/venvs"    # env: DUBLADOR_VENVS_DIR — keep on the same filesystem as UV_CACHE_DIR
+venvs_dir  = "~/dublador/venvs"    # env: DUBLADOR_VENVS_DIR — keep on the same filesystem as uv_cache_dir
+uv_cache_dir = "~/dublador/uv-cache"  # env: UV_CACHE_DIR
+# Paths must be absolute or start with ~; $VARS are expanded.
 
 [languages]
 source = "en"
@@ -13,6 +17,44 @@ target = "pt-BR"
 [translate]
 model = "gemma4:e4b-it-qat"        # provisional default, see docs/MODELS.md
 ollama_url = "http://localhost:11434"
+# Stage settings (passed through to the translate stage):
+# batch_size = 12          # segments per request
+# context_segments = 3     # neighbouring lines sent as context
+# retries = 3              # re-asks on invalid JSON before splitting the batch
+# temperature = 0.2
+# seed = 42
+# num_ctx = 8192
+
+[separate]
+# model = "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+# chunk_duration = 600   # seconds; split long audio to bound RAM/VRAM
+# use_autocast = true    # fp16; ~2.7x faster, same stems in tests
+# overlap = 2            # fewer overlapping windows = faster; default: the model's own
+
+[transcribe]
+# model = "large-v3"
+# device = "cpu"              # Whisper via CTranslate2; GPU support is issue #19
+# compute_type = "int8"
+# batch_size = 8
+# align_device = "cuda"       # wav2vec2 word alignment (torch ROCm)
+# silence_dbfs = -50.0        # drop text found over quieter audio (hallucinations)
+# max_segment_seconds = 12.0
+# split_pause_seconds = 0.6
+
+[speakers]
+# min_reference_seconds = 3.0           # voice-cloning clip length (ADR-0017: short clips carry less accent)
+# fallback_min_reference_seconds = 2.0  # accept a shorter clip, with a warning
+# max_reference_seconds = 4.5
+# target_reference_seconds = 3.5
+# max_gap_seconds = 0.5                 # join segments separated by at most this pause
+# reference_lufs = -20.0
+
+[synthesize]
+# backend = "omnivoice"     # pluggable TTS (docs/MODELS.md §6.2); other keys go to the backend
+# min_free_vram_gb = 5.0    # wait for the previous stage to free the GPU
+# checkpoint_every = 10     # rewrite synthesis.json every N segments
+# guidance_scale = 2.0      # omnivoice option: higher values made speech glitchy
+# num_step = 32             # omnivoice option: decoding steps (fewer = faster, rougher)
 
 [fit]
 max_speedup = 1.25

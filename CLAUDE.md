@@ -4,7 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado do projeto
 
-`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. **Ainda não há código**: o repositório só tem documentação de planejamento. Ainda não existem comandos de build, lint ou testes; quando a implementação começar, eles devem ser registrados aqui.
+`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. A implementação está no marco **M0 (Fundação)**. Já funcionam a config (`config.py`), o contrato (`packages/stagekit`), o job e o `manifest.json` (`jobs.py`, `manifest.py`), o runner com retomada por hash de entradas (`runner.py`, registro em `stages.py`) e os estágios ffmpeg `extract`/`mux` (`ffmpeg.py`), com `run`, `resume`, `status`, `setup` (venvs por estágio fora do repositório, `setup.py`) e `doctor` (`doctor.py`). No M1, os estágios `separate`, `transcribe`, `speakers` (v0), `translate`, `synthesize` e `mix` já existem em `stages/`, cada um com venv próprio em `<venvs_dir>/<nome>`, e `dublador run` gera o MKV dublado de ponta a ponta (sem ajuste de tempo, que é o M3). `clean` ainda sai com "not implemented yet". Para rodar os testes de um estágio: `UV_PROJECT_ENVIRONMENT=<venvs_dir>/<nome> uv run --project stages/<nome> pytest stages/<nome>` — nunca deixe `UV_PROJECT_ENVIRONMENT` exportada ao rodar comandos `uv` na raiz, senão o `uv` recria o venv do estágio com o projeto do orquestrador. O `config.toml` local desta máquina aponta para `~/SSD/Extras/dublador`. Os testes de orquestração usam estágios falsos em `tests/fake_stages/` e um vídeo sintético gerado com ffmpeg. O plano e os tickets estão no `plan.md` e nos issues do GitHub (mapas #1 e #2).
+
+## Comandos
+
+```bash
+uv sync                      # cria o .venv do orquestrador (Python 3.13)
+uv run dublador --help
+uv run ruff check .          # lint
+uv run ruff format .         # formatação (use --check no CI)
+uv run pyright               # tipos
+uv run pytest                # testes; um só: uv run pytest tests/test_cli.py::test_version
+```
+
+O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `pytest` da raiz também roda os testes de `packages/stagekit` (o contrato compartilhado, instalado como dependência editável); ele precisa continuar compatível com Python 3.10+. O `ruff.toml` da raiz mira o Python 3.13; subprojetos que rodam em Python mais antigo (como `packages/stagekit`, 3.10+) têm um `ruff.toml` que estende o da raiz e baixa o `target-version`.
 
 Leia nesta ordem antes de implementar qualquer coisa:
 1. `docs/ARCHITECTURE.md`: estágios, contrato de arquivos, CLI, configuração e layout proposto do repositório.

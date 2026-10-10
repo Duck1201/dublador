@@ -1,0 +1,48 @@
+[project]
+name = "dublador-stage-transcribe"
+version = "0.1.0"
+description = "dublador stage 03: English ASR with word timestamps (WhisperX)"
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "dublador-stagekit",
+    "whisperx==3.8.6",
+    # WhisperX pins torch~=2.8; ROCm 6.4 builds of that series (docs/MODELS.md).
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+    "torchvision==0.23.0",
+    # Needed by the ROCm torch wheel and only on the PyTorch index; uv applies
+    # `sources` to direct dependencies only.
+    "pytorch-triton-rocm",
+    "soundfile>=0.12",
+    "numpy",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/transcribe"]
+
+[tool.uv]
+# Stages only run on Linux x86_64 with ROCm; do not resolve for other platforms.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# WhisperX depends on the CUDA `triton`, which would clash with pytorch-triton-rocm
+# (both install the `triton` module). Drop it.
+override-dependencies = ["triton; sys_platform == 'never'"]
+
+[tool.uv.sources]
+dublador-stagekit = { path = "../../packages/stagekit", editable = true }
+torch = { index = "pytorch-rocm" }
+torchaudio = { index = "pytorch-rocm" }
+torchvision = { index = "pytorch-rocm" }
+pytorch-triton-rocm = { index = "pytorch-rocm" }
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm6.4"
+explicit = true

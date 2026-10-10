@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/stage-probe/v1",
+  "title": "Stage environment report for `dublador doctor`",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "stage"
+  ],
+  "properties": {
+    "schema": {
+      "const": "stage-probe/v1"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "python": {
+      "type": "string"
+    },
+    "packages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "available"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "arch_list": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

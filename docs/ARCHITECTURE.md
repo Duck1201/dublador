@@ -64,7 +64,7 @@ Determina **quem fala quando** e atribui um `speaker` (`SPK_00`, `SPK_01`…) a 
 
 ### 05 — speakers
 Para cada falante:
-- calcula o tempo total de fala e escolhe o **melhor trecho de referência** para clonagem (6–15 s, fala contínua, sem sobreposição, sem música residual), guardando também a transcrição exata do trecho (alguns TTS a exigem);
+- calcula o tempo total de fala e escolhe o **melhor trecho de referência** para clonagem (3–4,5 s cortados em fronteira de palavra, [ADR-0017](adr/0017-tts-omnivoice-e-referencia-curta.md); fala contínua, sem sobreposição, sem música residual), guardando também a transcrição exata do trecho (alguns TTS a exigem);
 - classifica o **gênero por falante**, agregando (votação) as predições de vários segmentos, com nível de confiança — nunca segmento a segmento;
 - decide a estratégia de voz: `clone` se houver referência boa o bastante, senão `bank:<voz>` do banco de vozes por gênero. ([ADR-0002](adr/0002-vozes-hibridas.md))
 
@@ -136,7 +136,7 @@ Dentro de cada estágio, o cache também é **por segmento**: cada segmento carr
 Regras do contrato:
 
 - Um estágio só escreve **no próprio diretório**, gravando em arquivo temporário e renomeando no fim (escrita atômica) — um estágio interrompido nunca deixa saída "meio pronta".
-- Os formatos JSON têm schema versionado (`"schema": "transcript/v1"`), validado na leitura.
+- Os formatos JSON têm schema versionado (`"schema": "transcript/v1"`), validado na leitura e antes da escrita. Os schemas ficam em `packages/stagekit/src/stagekit/schemas/`.
 - Tempos são sempre em **segundos (float) relativos ao início do vídeo**.
 - IDs de segmento são estáveis entre estágios (`seg_0001`…).
 
@@ -151,6 +151,15 @@ Todo estágio é invocado da mesma forma pelo orquestrador:
 - `--only` restringe o processamento a alguns segmentos (usado pelo loop de ajuste).
 - Progresso é emitido no stdout como **JSON lines** (`{"event": "progress", "done": 12, "total": 340}`), que o orquestrador transforma em barra de progresso.
 - Código de saída `0` = sucesso; qualquer outro = falha, com a mensagem de erro em stderr.
+
+Além do modo padrão, todo estágio tem dois subcomandos auxiliares:
+
+```
+<venv>/bin/python -m <stage> prefetch --config <config.toml>   # baixa os modelos para models_dir (usado por `dublador setup`)
+<venv>/bin/python -m <stage> probe                             # imprime JSON `stage-probe/v1` com versões e GPU (usado por `dublador doctor`)
+```
+
+O parsing desses argumentos, a escrita atômica, a validação dos schemas e o emissor de progresso ficam no pacote compartilhado `packages/stagekit`. Ele contém só o contrato (nada de modelo), por isso não viola a regra de que um estágio não importa código de outro ([ADR-0007](adr/0007-venv-por-estagio-e-contrato-de-arquivos.md)).
 
 ## CLI
 
@@ -220,6 +229,9 @@ dublador/
 ├── config.example.toml
 ├── pyproject.toml            # orquestrador + CLI (pacote `dublador`)
 ├── src/dublador/             # CLI, orquestração, manifest, ffmpeg (01 e 10), loop de ajuste
+├── packages/
+│   └── stagekit/             # contrato compartilhado: args, config, escrita atômica, progresso e os
+│                             # JSON Schemas (src/stagekit/schemas/), que vão junto para o venv de cada estágio
 ├── stages/
 │   ├── separate/             # cada um: pyproject.toml próprio; venv em <venvs_dir>/<nome>
 │   ├── transcribe/
@@ -229,7 +241,6 @@ dublador/
 │   ├── synthesize/
 │   ├── fit/
 │   └── mix/
-├── schemas/                  # JSON Schemas do contrato de arquivos
 ├── voices/                   # metadados do banco de vozes de fallback (sem áudio no git)
 ├── tests/
 └── docs/
