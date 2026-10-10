@@ -35,13 +35,14 @@ class StageSpec:
     writes_output_video: bool = False
     module: str | None = None
     function: InProcessFn | None = None
+    project: Path | None = None  # default: stages/<name>
     python: Path | None = None  # default: <venvs_dir>/<name>/bin/python
     env: Mapping[str, str] = field(default_factory=dict)
     version: str | None = None  # default: read from stages/<name>/pyproject.toml
 
     @property
     def project_dir(self) -> Path:
-        return STAGES_DIR / self.name
+        return self.project or STAGES_DIR / self.name
 
     def python_path(self, config: Config) -> Path:
         return self.python or config.paths.venvs_dir / self.name / "bin" / "python"

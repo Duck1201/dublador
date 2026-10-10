@@ -19,6 +19,7 @@ from dublador.ffmpeg import FfmpegError
 from dublador.jobs import Job, JobError, find_job, list_jobs
 from dublador.manifest import Manifest
 from dublador.runner import PipelineError, open_job, reopen_job, run_pipeline
+from dublador.setup import SetupError, run_setup
 
 app = typer.Typer(
     name="dublador",
@@ -56,7 +57,7 @@ def _errors() -> Iterator[None]:
     """Turn expected failures into a one-line error and exit code 1."""
     try:
         yield
-    except (JobError, PipelineError, FfmpegError, ContractError) as e:
+    except (JobError, PipelineError, FfmpegError, ContractError, SetupError) as e:
         err_console.print(f"[red]error:[/red] {e}")
         raise typer.Exit(code=1) from e
     except KeyboardInterrupt as e:
@@ -208,9 +209,18 @@ def clean(
 
 
 @app.command()
-def setup() -> None:
+def setup(
+    only: Annotated[
+        list[str] | None, typer.Option("--only", help="Set up only this stage (repeatable).")
+    ] = None,
+    skip_prefetch: Annotated[
+        bool, typer.Option("--skip-prefetch", help="Create venvs without downloading models.")
+    ] = False,
+) -> None:
     """Create the stage venvs and download the models."""
-    _not_implemented("setup")
+    config = _load_config()
+    with _errors():
+        run_setup(config, stages.PIPELINE, console, only=only or (), prefetch=not skip_prefetch)
 
 
 @app.command()
