@@ -147,3 +147,15 @@ def test_example_config_is_valid(home: Path, cwd: Path) -> None:
     example = Path(__file__).parents[1] / "config.example.toml"
     config = load_config(env={"HOME": str(home), "DUBLADOR_CONFIG": str(example)}, cwd=cwd)
     assert config.source_file == example
+
+
+def test_shared_section_passes_stage_keys_through(home: Path, cwd: Path, tmp_path: Path) -> None:
+    write(cwd / "config.toml", '[translate]\nmodel = "m"\nbatch_size = 4\n')
+    config = load_config({"translate.model": "flag"}, env={"HOME": str(home)}, cwd=cwd)
+    assert config.translate.model == "flag"
+    data = tomllib.loads(write_snapshot(config, tmp_path).read_text())
+    assert data["translate"] == {
+        "model": "flag",
+        "ollama_url": "http://localhost:11434",
+        "batch_size": 4,
+    }

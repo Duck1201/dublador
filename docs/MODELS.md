@@ -386,8 +386,9 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 
 **Tradução (Ollama)**
 - [x] `ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M` — 2026-10-09: instalado (18 GB). O `ollama show` lista a capability `thinking`, mas na prática a resposta vem sem raciocínio (`thinking` vazio); ~23 tok/s no Vulkan com offload. Opcionais ainda não baixados: `gemma4:26b-a4b-it-qat`, `translategemma:12b`.
-- [ ] Confirmar que `"think": false` realmente desliga o raciocínio no `gemma4:e4b-it-qat` (sem bloco de pensamento na resposta, tok de saída reduzidos).
-- [~] Confirmar `keep_alive: 0` / `ollama stop` libera a VRAM (checar `ollama ps` e `rocm-smi`) antes do estágio de TTS — 2026-10-09: com `keep_alive: 0` o `ollama ps` fica vazio logo após a resposta; falta conferir no `rocm-smi`.
+- [x] Confirmar que `"think": false` realmente desliga o raciocínio no `gemma4:e4b-it-qat` — 2026-10-10: com `think: false` o campo `thinking` vem vazio e a mesma resposta usa 279 tokens (8,4 s) contra 605 tokens e 1 296 caracteres de raciocínio (14 s) com `think: true`.
+- [x] Confirmar `keep_alive: 0` / `ollama stop` libera a VRAM (checar `ollama ps` e `rocm-smi`) antes do estágio de TTS — 2026-10-10: no `rocm-smi` a VRAM volta ao nível do desktop (~1 GB) em ~0,2 s após `/api/generate` com `keep_alive: 0`, mas o `ollama ps` já fica vazio antes disso e, numa execução, ainda havia 5 GB ocupados logo depois. O estágio `translate` sempre descarrega o modelo e espera ele sair do `/api/ps`; os estágios de GPU seguintes devem conferir a VRAM livre antes de carregar o modelo.
+- [x] Estágio `translate` v0 com `gemma4:e4b-it-qat` (2026-10-10): 10 segmentos em ~20 s, JSON válido de primeira, PT-BR natural ("você", "placa de vídeo"). O modelo tende a responder em minúsculas quando o contexto está em minúsculas, mesmo pedindo o contrário no prompt; o estágio capitaliza o início das frases por código.
 - [ ] Rodar o **protocolo de benchmark** (§5) nos 4 modelos; comparar Ollama **Vulkan vs ROCm** (tok/s) para o modelo vencedor.
 
 **TTS**

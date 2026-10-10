@@ -41,6 +41,9 @@ ENV_OVERRIDES: dict[str, str] = {
 }
 
 OUTPUT_FORMATS = ("mkv", "mp4")
+# Sections read by both the orchestrator and a stage: keys the orchestrator does
+# not know are stage settings (validated by the stage) and are passed through.
+SHARED_SECTIONS = ("translate",)
 
 _ENV_VAR = re.compile(r"\$(\w+)|\$\{(\w+)\}")
 _GFX_VERSION = re.compile(r"\d+\.\d+\.\d+")
@@ -108,7 +111,7 @@ class Config:
             "gpu": {k: v for k, v in vars(self.gpu).items() if v is not None},
         }
         for name, section in self.stage_sections.items():
-            data[name] = copy.deepcopy(dict(section))
+            data[name] = {**data.get(name, {}), **copy.deepcopy(dict(section))}
         return data
 
 
@@ -147,7 +150,13 @@ def load_config(
         for name, section in _read_toml(source_file).items():
             if not isinstance(section, dict):
                 raise ConfigError(f"{source_file}: top-level key '{name}' must be a table")
-            if name in data:
+            if name in SHARED_SECTIONS:
+                known = {k: v for k, v in section.items() if k in DEFAULTS[name]}
+                extra = {k: v for k, v in section.items() if k not in DEFAULTS[name]}
+                data[name].update(known)
+                if extra:
+                    stage_sections[name] = extra
+            elif name in data:
                 data[name].update(section)
             else:
                 stage_sections[name] = section
