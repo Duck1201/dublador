@@ -15,6 +15,7 @@ from stagekit import ContractError
 
 from dublador import __version__, stages
 from dublador.config import Config, ConfigError, load_config, write_snapshot
+from dublador.doctor import run_checks
 from dublador.ffmpeg import FfmpegError
 from dublador.jobs import Job, JobError, find_job, list_jobs
 from dublador.manifest import Manifest
@@ -223,10 +224,23 @@ def setup(
         run_setup(config, stages.PIPELINE, console, only=only or (), prefetch=not skip_prefetch)
 
 
+_LEVEL_STYLE = {"ok": "[green]ok[/]", "warn": "[yellow]warn[/]", "error": "[red]error[/]"}
+
+
 @app.command()
-def doctor() -> None:
+def doctor(
+    min_free_gb: Annotated[float, typer.Option(help="Error below this much free disk.")] = 10,
+    warn_free_gb: Annotated[float, typer.Option(help="Warn below this much free disk.")] = 50,
+) -> None:
     """Check GPU, ffmpeg, Ollama, models and disk space."""
-    _not_implemented("doctor")
+    config = _load_config()
+    checks = run_checks(config, stages.PIPELINE, min_free_gb=min_free_gb, warn_free_gb=warn_free_gb)
+    table = Table("check", "status", "detail")
+    for check in checks:
+        table.add_row(check.name, _LEVEL_STYLE[check.level], check.detail)
+    console.print(table)
+    if any(check.level == "error" for check in checks):
+        raise typer.Exit(code=1)
 
 
 def main() -> None:

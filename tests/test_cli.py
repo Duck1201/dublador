@@ -9,7 +9,7 @@ from dublador.cli import app
 runner = CliRunner()
 
 COMMANDS = ["run", "resume", "status", "clean", "setup", "doctor"]
-STUBS = ["clean", "doctor"]
+STUBS = ["clean"]
 
 
 def test_help_lists_all_commands() -> None:
