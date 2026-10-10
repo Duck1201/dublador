@@ -98,6 +98,11 @@ def test_probe_check_levels() -> None:
     assert _probe_check("s", no_gpu, "gfx1102").level == "error"
     wrong_arch = {**base, "gpu": {"available": True, "arch_list": ["gfx1100"]}}
     assert _probe_check("s", wrong_arch, "gfx1102").level == "warn"
+    ct2_ok = {**base, "gpu": {"available": True, "ctranslate2_devices": 1}}
+    assert _probe_check("s", ct2_ok, "gfx1102").level == "ok"
+    ct2_cpu = {**base, "gpu": {"available": True, "ctranslate2_devices": 0}}
+    check = _probe_check("s", ct2_cpu, "gfx1102")
+    assert check.level == "warn" and "CTranslate2 on CPU only" in check.detail
 
 
 def test_tools_report_versions(monkeypatch: pytest.MonkeyPatch) -> None:

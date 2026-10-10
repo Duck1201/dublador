@@ -22,6 +22,9 @@ models/
 *.onnx
 *.bin
 
+# Wheels that `dublador setup` links into a stage from models_dir (stages.ExtraWheel)
+stages/*/wheels/
+
 # Media and pipeline work directories
 work/
 output/

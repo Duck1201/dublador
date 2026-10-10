@@ -190,7 +190,12 @@ def _probe_check(name: str, info: dict[str, Any], arch: str | None) -> Check:
     arch_list = gpu.get("arch_list", [])
     if arch and arch_list and arch not in arch_list:
         return Check(name, "warn", ", ".join([*parts, f"{arch} not in wheel arch list"]))
-    return Check(name, "ok", ", ".join([*parts, f"GPU {gpu.get('name') or 'available'}"]))
+    parts.append(f"GPU {gpu.get('name') or 'available'}")
+    if gpu.get("ctranslate2_devices") == 0:
+        # The stage falls back to the CPU, so this is a slowdown, not a failure.
+        reason = gpu.get("ctranslate2_error") or "no device"
+        return Check(name, "warn", ", ".join([*parts, f"CTranslate2 on CPU only ({reason})"]))
+    return Check(name, "ok", ", ".join(parts))
 
 
 def run_checks(

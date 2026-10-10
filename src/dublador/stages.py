@@ -18,6 +18,19 @@ InProcessFn = Callable[[Path, Manifest, Config], None]
 
 
 @dataclass(frozen=True)
+class ExtraWheel:
+    """A wheel from a release archive that no package index serves (e.g. the ROCm
+    build of CTranslate2). `dublador setup` downloads it into models_dir and links
+    it as stages/<name>/wheels/<file> before `uv sync`; the stage's pyproject points
+    a path source there, so the lockfile holds a relative path and the wheel hash,
+    and `uv sync`/`uv run` keep installing this build."""
+
+    url: str
+    sha256: str  # of the archive at `url`
+    member: str  # path of the wheel inside the zip archive
+
+
+@dataclass(frozen=True)
 class StageSpec:
     """How to run one stage and what its result depends on.
 
@@ -40,6 +53,7 @@ class StageSpec:
     project: Path | None = None  # default: stages/<name>
     python: Path | None = None  # default: <venvs_dir>/<name>/bin/python
     env: Mapping[str, str] = field(default_factory=dict)
+    extra_wheels: tuple[ExtraWheel, ...] = ()
     version: str | None = None  # default: derived from the stage's code (see resolved_version)
 
     @property
@@ -66,7 +80,11 @@ class StageSpec:
         src = self.project_dir / "src"
         files = [pyproject, self.project_dir / "uv.lock"]
         files += [p for p in src.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
-        return f"{declared}+src.{_digest(files, self.project_dir)}"
+        version = f"{declared}+src.{_digest(files, self.project_dir)}"
+        if self.extra_wheels:
+            wheels = "".join(w.sha256 + w.member for w in self.extra_wheels).encode()
+            version += f".wheels.{hashlib.sha256(wheels).hexdigest()[:8]}"
+        return version
 
 
 def _digest(files: Iterable[Path], root: Path) -> str:
@@ -78,6 +96,11 @@ def _digest(files: Iterable[Path], root: Path) -> str:
 
 
 _SEP = "02_separate"
+_CT2_ROCM = ExtraWheel(
+    url="https://github.com/OpenNMT/CTranslate2/releases/download/v4.8.2/rocm-python-wheels-Linux.zip",
+    sha256="b469e765f74ef85fb97bf4fe2347c8c6296dda00d7f5cf20658f23e95004a925",
+    member="temp-linux/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+)
 
 # M1 pipeline. diarize and fit join in M2/M3.
 PIPELINE: tuple[StageSpec, ...] = (
@@ -100,6 +123,8 @@ PIPELINE: tuple[StageSpec, ...] = (
         outputs=("03_transcribe/transcript.json",),
         config_sections=("languages",),
         module="transcribe",
+        # Whisper on the GPU: PyPI only has CPU/CUDA builds of CTranslate2 (#19).
+        extra_wheels=(_CT2_ROCM,),
     ),
     StageSpec(
         "speakers",

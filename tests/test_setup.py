@@ -1,14 +1,18 @@
+import base64
+import hashlib
 import io
 import shutil
+import subprocess
 import textwrap
+import zipfile
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
 from dublador.config import Config, load_config
-from dublador.setup import SetupError, installable, run_setup, same_filesystem
-from dublador.stages import PIPELINE, StageSpec
+from dublador.setup import SetupError, fetch_wheel, installable, run_setup, same_filesystem
+from dublador.stages import PIPELINE, ExtraWheel, StageSpec
 
 needs_uv = pytest.mark.skipif(shutil.which("uv") is None, reason="uv not installed")
 
@@ -92,3 +96,75 @@ def test_installable_filters(toy_stage: StageSpec) -> None:
 
 def test_same_filesystem_uses_existing_parent(tmp_path: Path) -> None:
     assert same_filesystem(tmp_path / "a" / "b", tmp_path / "c")
+
+
+def _wheel_bytes() -> bytes:
+    """A minimal valid pure-Python wheel: toyextra 0.1."""
+    files = {
+        "toyextra/__init__.py": b"VALUE = 42\n",
+        "toyextra-0.1.dist-info/METADATA": b"Metadata-Version: 2.1\nName: toyextra\nVersion: 0.1\n",
+        "toyextra-0.1.dist-info/WHEEL": b"Wheel-Version: 1.0\nGenerator: test\n"
+        b"Root-Is-Purelib: true\nTag: py3-none-any\n",
+    }
+    record = []
+    for name, data in files.items():
+        digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+        record.append(f"{name},sha256={digest},{len(data)}")
+    record.append("toyextra-0.1.dist-info/RECORD,,")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, data in files.items():
+            zf.writestr(name, data)
+        zf.writestr("toyextra-0.1.dist-info/RECORD", "\n".join(record) + "\n")
+    return buf.getvalue()
+
+
+@pytest.fixture
+def release_zip(tmp_path: Path) -> ExtraWheel:
+    archive = tmp_path / "release" / "wheels.zip"
+    archive.parent.mkdir()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("dist/toyextra-0.1-py3-none-any.whl", _wheel_bytes())
+    return ExtraWheel(
+        url=archive.as_uri(),
+        sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        member="dist/toyextra-0.1-py3-none-any.whl",
+    )
+
+
+def test_fetch_wheel_downloads_once_and_checks_sha(release_zip: ExtraWheel, tmp_path: Path) -> None:
+    downloads = tmp_path / "downloads"
+    wheel = fetch_wheel(release_zip, downloads)
+    assert wheel.name == "toyextra-0.1-py3-none-any.whl" and wheel.is_file()
+    assert fetch_wheel(release_zip, downloads) == wheel  # cached, no download
+
+    bad = ExtraWheel(release_zip.url, "0" * 64, release_zip.member)
+    with pytest.raises(SetupError, match="sha256 mismatch"):
+        fetch_wheel(bad, tmp_path / "other")
+    missing = ExtraWheel(release_zip.url, release_zip.sha256, "dist/nope.whl")
+    with pytest.raises(SetupError, match=r"has no dist/nope\.whl"):
+        fetch_wheel(missing, tmp_path / "third")
+
+
+@needs_uv
+def test_setup_links_extra_wheels_before_sync(
+    toy_stage: StageSpec, release_zip: ExtraWheel, config: Config
+) -> None:
+    assert toy_stage.project is not None
+    (toy_stage.project / "pyproject.toml").write_text(
+        '[project]\nname = "toy"\nversion = "0.1.0"\nrequires-python = ">=3.11"\n'
+        'dependencies = ["toyextra"]\n\n[tool.uv]\npackage = false\n\n'
+        '[tool.uv.sources]\ntoyextra = { path = "wheels/toyextra-0.1-py3-none-any.whl" }\n'
+    )
+    spec = StageSpec(
+        "toy", module="toystage", project=toy_stage.project, extra_wheels=(release_zip,)
+    )
+    run_setup(config, [spec], Console(file=io.StringIO()), prefetch=False)
+    link = toy_stage.project / "wheels" / "toyextra-0.1-py3-none-any.whl"
+    assert link.is_symlink() and link.resolve().is_relative_to(config.paths.models_dir)
+    python = config.paths.venvs_dir / "toy" / "bin" / "python"
+    out = subprocess.run(
+        [str(python), "-c", "import toyextra; print(toyextra.VALUE)"],
+        capture_output=True, text=True, check=True,
+    )  # fmt: skip
+    assert out.stdout.strip() == "42"

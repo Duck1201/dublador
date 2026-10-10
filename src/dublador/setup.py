@@ -1,8 +1,12 @@
 """`dublador setup`: one uv venv per stage, outside the repository (ADR-0007, ADR-0014)."""
 
+import hashlib
 import os
+import shutil
 import subprocess
 import tempfile
+import urllib.request
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -10,7 +14,7 @@ from rich.console import Console
 
 from dublador.config import Config, write_snapshot
 from dublador.runner import stage_env
-from dublador.stages import StageSpec
+from dublador.stages import ExtraWheel, StageSpec
 
 
 class SetupError(Exception):
@@ -67,6 +71,56 @@ def _check(cmd: list[str], *, env: dict[str, str], cwd: Path, what: str) -> None
         raise SetupError(f"{what} failed (exit {code})")
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def fetch_wheel(extra: ExtraWheel, downloads: Path) -> Path:
+    """Download the archive once (checked against its sha256) and extract the wheel."""
+    folder = downloads / extra.sha256[:16]
+    archive = folder / extra.url.rsplit("/", 1)[-1]
+    wheel = folder / Path(extra.member).name
+    if wheel.is_file():
+        return wheel
+    folder.mkdir(parents=True, exist_ok=True)
+    if not archive.is_file() or _sha256(archive) != extra.sha256:
+        partial = archive.with_name(archive.name + ".part")
+        try:
+            with urllib.request.urlopen(extra.url) as response, partial.open("wb") as out:
+                shutil.copyfileobj(response, out)
+        except OSError as e:
+            raise SetupError(f"could not download {extra.url}: {e}") from e
+        if _sha256(partial) != extra.sha256:
+            partial.unlink()
+            raise SetupError(f"{extra.url}: sha256 mismatch")
+        partial.replace(archive)
+    with zipfile.ZipFile(archive) as zf:
+        try:
+            data = zf.read(extra.member)
+        except KeyError as e:
+            raise SetupError(f"{archive.name} has no {extra.member}") from e
+    partial = wheel.with_name(wheel.name + ".part")
+    partial.write_bytes(data)
+    partial.replace(wheel)
+    return wheel
+
+
+def link_wheel(wheel: Path, project_dir: Path) -> Path:
+    """stages/<name>/wheels/<file> -> the wheel in models_dir (the folder is git-ignored)."""
+    link = project_dir / "wheels" / wheel.name
+    link.parent.mkdir(exist_ok=True)
+    if not (link.is_symlink() and link.readlink() == wheel):
+        tmp = link.with_name(f".{link.name}.tmp")
+        tmp.unlink(missing_ok=True)
+        tmp.symlink_to(wheel)
+        tmp.replace(link)
+    return link
+
+
 def run_setup(
     config: Config,
     specs: Sequence[StageSpec],
@@ -100,6 +154,8 @@ def run_setup(
         for spec in selected:
             console.rule(spec.name)
             env = uv_env(config, spec.name)
+            for extra in spec.extra_wheels:
+                link_wheel(fetch_wheel(extra, paths.models_dir / "_downloads"), spec.project_dir)
             _check(
                 ["uv", "sync", "--project", str(spec.project_dir)],
                 env=env,

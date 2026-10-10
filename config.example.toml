@@ -33,9 +33,9 @@ ollama_url = "http://localhost:11434"
 
 [transcribe]
 # model = "large-v3"
-# device = "cpu"              # Whisper via CTranslate2; GPU support is issue #19
-# compute_type = "int8"
-# batch_size = 8
+# device = "cuda"             # Whisper via the ROCm build of CTranslate2; falls back to the CPU
+# compute_type = "int8_float16"  # on the CPU fallback: int8
+# batch_size = 4              # 8 pushes the GPU to ~7.8 of 8 GB with the desktop
 # align_device = "cuda"       # wav2vec2 word alignment (torch ROCm)
 # silence_dbfs = -50.0        # drop text found over quieter audio (hallucinations)
 # max_segment_seconds = 12.0
