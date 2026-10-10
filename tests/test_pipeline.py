@@ -173,3 +173,24 @@ def test_cli_run_status_resume(
     result = runner.invoke(app, ["status", job_id], env=env)
     assert result.exit_code == 0
     assert result.output.count("done") >= 4
+
+
+def test_stage_version_tracks_source_code(tmp_path: Path) -> None:
+    project = tmp_path / "toy"
+    (project / "src" / "toy").mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "toy"\nversion = "0.1.0"\n')
+    module = project / "src" / "toy" / "__main__.py"
+    module.write_text("print(1)\n")
+    spec = StageSpec("toy", module="toy", project=project)
+    before = spec.resolved_version()
+    assert before is not None and before.startswith("0.1.0+src.")
+    (project / "src" / "toy" / "__pycache__").mkdir()
+    (project / "src" / "toy" / "__pycache__" / "x.pyc").write_bytes(b"junk")
+    assert spec.resolved_version() == before
+    module.write_text("print(2)\n")
+    assert spec.resolved_version() != before
+
+
+def test_in_process_stage_version_tracks_module() -> None:
+    version = stages.PIPELINE[0].resolved_version()
+    assert version is not None and "+src." in version

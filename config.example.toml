@@ -18,6 +18,12 @@ target = "pt-BR"
 model = "gemma4:e4b-it-qat"        # provisional default, see docs/MODELS.md
 ollama_url = "http://localhost:11434"
 
+[separate]
+# model = "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+# chunk_duration = 600   # seconds; split long audio to bound RAM/VRAM
+# use_autocast = true    # fp16; ~2.7x faster, same stems in tests
+# overlap = 2            # fewer overlapping windows = faster; default: the model's own
+
 [fit]
 max_speedup = 1.25
 max_fit_iterations = 2

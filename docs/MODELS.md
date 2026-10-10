@@ -378,6 +378,7 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 - [ ] Qwen3-ASR-1.7B + ForcedAligner no mesmo trecho (sdpa, bf16): WER, VRAM, tempo; comparar com WhisperX.
 
 **Separação / diarização / gênero**
+- [~] BS-RoFormer-1297 na RX 7600 (estágio `separate`, 2026-10-10): pico de **6,3 GB** de VRAM (com o desktop); em fp32 levou 3,2× o tempo real; com `use_autocast` (fp16) cai para ~1,0× (60 s de áudio em ~70 s com a carga do modelo), sem diferença mensurável nos stems (73 dB entre fp16 e fp32 em fala sintética sobre música; SDR da voz igual, 22,7 dB). `overlap = 2` leva a ~0,6×, também sem perda nesse teste. O pacote `audio-separator` 0.47 importa `audioread` sem declará-lo, e o extra `[cpu]` traz o `onnxruntime` de CPU. Falta a avaliação de qualidade com o vídeo de referência (SFX/multidão).
 - [ ] BS-RoFormer-1297 vs Mel-RoFormer Kim vs htdemucs_ft em 3 trechos (diálogo+música, diálogo+explosões, multidão): ouvir vazamento de SFX na voz e de voz no fundo; medir VRAM e tempo para 1 h com `--chunk_duration`.
 - [ ] pyannote community-1 na GPU: DER aproximado num trecho anotado à mão (5 min, 3+ falantes); tempo para 1 h.
 - [ ] Classificador de gênero: acurácia por falante em ≥ 20 falantes conhecidos (incluir vozes femininas graves, masculinas agudas, criança).

@@ -45,8 +45,10 @@ def same_filesystem(a: Path, b: Path) -> bool:
 
 def uv_env(config: Config, stage: str) -> dict[str, str]:
     paths = config.paths
+    # A VIRTUAL_ENV inherited from `uv run dublador` points at the orchestrator's venv.
+    inherited = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     return dict(
-        os.environ,
+        inherited,
         UV_PROJECT_ENVIRONMENT=str(paths.venvs_dir / stage),
         UV_CACHE_DIR=str(paths.uv_cache_dir),
         # Python builds uv downloads for a stage stay next to the venvs, not in ~.

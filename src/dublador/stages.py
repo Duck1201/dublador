@@ -1,7 +1,9 @@
 """Stage registry: what each stage reads and writes, and how it is run."""
 
+import hashlib
+import inspect
 import tomllib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,7 +40,7 @@ class StageSpec:
     project: Path | None = None  # default: stages/<name>
     python: Path | None = None  # default: <venvs_dir>/<name>/bin/python
     env: Mapping[str, str] = field(default_factory=dict)
-    version: str | None = None  # default: read from stages/<name>/pyproject.toml
+    version: str | None = None  # default: derived from the stage's code (see resolved_version)
 
     @property
     def project_dir(self) -> Path:
@@ -48,15 +50,31 @@ class StageSpec:
         return self.python or config.paths.venvs_dir / self.name / "bin" / "python"
 
     def resolved_version(self) -> str | None:
+        """Declared version plus a digest of the code, so editing a stage without
+        bumping its version still invalidates cached results."""
         if self.version is not None:
             return self.version
         if self.function is not None:
-            return __version__
+            source = inspect.getsourcefile(self.function)
+            files = [Path(source)] if source else []
+            return f"{__version__}+src.{_digest(files, Path(source or '.').parent)}"
         pyproject = self.project_dir / "pyproject.toml"
         if not pyproject.is_file():
             return None
         with pyproject.open("rb") as f:
-            return tomllib.load(f).get("project", {}).get("version")
+            declared = tomllib.load(f).get("project", {}).get("version", "0")
+        src = self.project_dir / "src"
+        files = [pyproject, self.project_dir / "uv.lock"]
+        files += [p for p in src.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
+        return f"{declared}+src.{_digest(files, self.project_dir)}"
+
+
+def _digest(files: Iterable[Path], root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(f for f in files if f.is_file()):
+        digest.update(str(path.relative_to(root)).encode() + b"\0")
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
 
 
 _SEP = "02_separate"
