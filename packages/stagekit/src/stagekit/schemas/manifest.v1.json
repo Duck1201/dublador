@@ -8,6 +8,7 @@
     "schema",
     "job_id",
     "video",
+    "options",
     "created_at",
     "stages"
   ],
@@ -38,6 +39,31 @@
         "size": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_path",
+        "audio_track"
+      ],
+      "properties": {
+        "output_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audio_track": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },

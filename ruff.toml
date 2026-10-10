@@ -1,7 +1,7 @@
-# Shared by the orchestrator, packages/ and stages/. Stages may target Python 3.10+.
+# Shared by the orchestrator, packages/ and stages/. Subprojects that support
+# older Pythons extend this file and lower target-version (see packages/stagekit).
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 
 [lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
-

@@ -8,13 +8,13 @@ stages; they are passed through unvalidated into the job's config snapshot.
 import copy
 import os
 import re
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import tomli_w
-import tomllib
 from stagekit import atomic_write_text
 
 SNAPSHOT_NAME = "config.snapshot.toml"

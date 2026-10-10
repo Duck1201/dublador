@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from stagekit import StageContext, StageError, main
 from stagekit.stage import parse_args
 

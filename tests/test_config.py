@@ -1,7 +1,7 @@
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 
 from dublador.config import ConfigError, find_config_file, load_config, write_snapshot
 

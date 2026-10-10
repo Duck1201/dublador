@@ -79,6 +79,7 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "schema": "manifest/v1",
         "job_id": "talk-1a2b3c4d",
         "video": {"path": "/videos/talk.mp4", "hash": H, "size": 1024},
+        "options": {"output_path": "/videos/talk.ptbr.mkv", "audio_track": None},
         "created_at": T,
         "stages": {
             "extract": {

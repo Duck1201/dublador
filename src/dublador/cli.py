@@ -1,14 +1,24 @@
 """Command-line interface. See docs/ARCHITECTURE.md#cli."""
 
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, NoReturn
 
 import typer
 from rich.console import Console
+from rich.table import Table
+from stagekit import ContractError
 
-from dublador import __version__
-from dublador.config import Config, ConfigError, load_config
+from dublador import __version__, stages
+from dublador.config import Config, ConfigError, load_config, write_snapshot
+from dublador.ffmpeg import FfmpegError
+from dublador.jobs import Job, JobError, find_job, list_jobs
+from dublador.manifest import Manifest
+from dublador.runner import PipelineError, open_job, reopen_job, run_pipeline
 
 app = typer.Typer(
     name="dublador",
@@ -16,6 +26,7 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+console = Console()
 err_console = Console(stderr=True)
 
 
@@ -29,12 +40,35 @@ def _not_implemented(command: str) -> NoReturn:
     raise typer.Exit(code=1)
 
 
-def _load_config(overrides: dict[str, object] | None = None) -> Config:
+def _load_config(
+    overrides: dict[str, object] | None = None, *, snapshot: Path | None = None
+) -> Config:
+    env = dict(os.environ, DUBLADOR_CONFIG=str(snapshot)) if snapshot else None
     try:
-        return load_config(overrides)
+        return load_config(overrides, env=env)
     except ConfigError as e:
         err_console.print(f"[red]config error:[/red] {e}")
         raise typer.Exit(code=2) from e
+
+
+@contextmanager
+def _errors() -> Iterator[None]:
+    """Turn expected failures into a one-line error and exit code 1."""
+    try:
+        yield
+    except (JobError, PipelineError, FfmpegError, ContractError) as e:
+        err_console.print(f"[red]error:[/red] {e}")
+        raise typer.Exit(code=1) from e
+    except KeyboardInterrupt as e:
+        err_console.print("[yellow]interrupted[/yellow]; continue with `dublador resume`")
+        raise typer.Exit(code=130) from e
+
+
+def _run(job: Job, manifest: Manifest, config: Config) -> None:
+    write_snapshot(config, job.dir)
+    console.print(f"job [bold]{job.id}[/bold] in {job.dir}")
+    run_pipeline(job, manifest, config, stages.PIPELINE, console)
+    console.print(f"[green]done:[/green] {manifest.output_path}")
 
 
 def _version_callback(value: bool) -> None:
@@ -65,7 +99,14 @@ def run(
     audio_track: Annotated[int | None, typer.Option(help="Audio track index to dub.")] = None,
 ) -> None:
     """Dub a video from start to finish."""
-    _load_config(
+    if review:
+        _not_implemented("run --review")
+    if video is None:
+        err_console.print(
+            "[red]error:[/red] missing VIDEO (the file picker is not implemented yet)"
+        )
+        raise typer.Exit(code=2)
+    config = _load_config(
         {
             "languages.source": source_lang,
             "languages.target": target_lang,
@@ -73,23 +114,87 @@ def run(
             "output.format": format.value if format else None,
         }
     )
-    _not_implemented("run")
+    with _errors():
+        job, manifest = open_job(
+            video.expanduser().resolve(),
+            config,
+            stages.PIPELINE,
+            output=output.expanduser().resolve() if output else None,
+            audio_track=audio_track,
+        )
+        _run(job, manifest, config)
 
 
 @app.command()
 def resume(
     target: Annotated[str | None, typer.Argument(help="Job ID or video path.")] = None,
 ) -> None:
-    """Resume an interrupted or reviewed job."""
-    _not_implemented("resume")
+    """Resume an interrupted or reviewed job (default: the latest one)."""
+    with _errors():
+        job = find_job(target, _load_config().paths.work_dir)
+        manifest = reopen_job(job)
+        _run(job, manifest, _load_config(snapshot=job.snapshot_path))
 
 
 @app.command()
 def status(
     job_id: Annotated[str | None, typer.Argument(help="Job ID.")] = None,
 ) -> None:
-    """Show the state of a job."""
-    _not_implemented("status")
+    """Show the stages of a job, or list all jobs."""
+    work_dir = _load_config().paths.work_dir
+    with _errors():
+        if job_id is None:
+            _print_jobs(list_jobs(work_dir), work_dir)
+        else:
+            _print_stages(Manifest.load(find_job(job_id, work_dir).manifest_path))
+
+
+_STATUS_STYLE = {"done": "green", "failed": "red", "running": "yellow", "pending": "dim"}
+
+
+def _job_state(manifest: Manifest) -> str:
+    statuses = [entry["status"] for entry in manifest.data["stages"].values()]
+    for state in ("failed", "running"):
+        if state in statuses:
+            return state
+    return "done" if all(s == "done" for s in statuses) else "pending"
+
+
+def _print_jobs(jobs: list[Job], work_dir: Path) -> None:
+    if not jobs:
+        console.print(f"no jobs in {work_dir}")
+        return
+    table = Table("job", "video", "stages", "state", "updated")
+    for job in jobs:
+        manifest = Manifest.load(job.manifest_path)
+        entries = manifest.data["stages"].values()
+        done = sum(entry["status"] == "done" for entry in entries)
+        state = _job_state(manifest)
+        updated = datetime.fromtimestamp(job.manifest_path.stat().st_mtime)
+        table.add_row(
+            job.id,
+            manifest.video_path.name,
+            f"{done}/{len(entries)}",
+            f"[{_STATUS_STYLE[state]}]{state}[/]",
+            updated.strftime("%Y-%m-%d %H:%M"),
+        )
+    console.print(table)
+
+
+def _print_stages(manifest: Manifest) -> None:
+    console.print(f"job [bold]{manifest.job_id}[/bold]: {manifest.video_path}")
+    console.print(f"output: {manifest.output_path}")
+    table = Table("stage", "status", "started", "finished", "error")
+    for name, entry in manifest.data["stages"].items():
+        status = entry["status"]
+        table.add_row(
+            name,
+            f"[{_STATUS_STYLE[status]}]{status}[/]",
+            entry.get("started_at") or "",
+            entry.get("finished_at") or "",
+            entry.get("error") or "",
+        )
+    console.print(table)
 
 
 @app.command()

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado do projeto
 
-`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. A implementação está no marco **M0 (Fundação)**: por enquanto só existe o esqueleto da CLI (`src/dublador/`), e os subcomandos ainda saem com "not implemented yet". O plano e os tickets estão no `plan.md` e nos issues do GitHub (mapas #1 e #2).
+`dublador` é uma pipeline de IA 100% local que dubla vídeos EN→PT-BR por uma CLI Linux. A implementação está no marco **M0 (Fundação)**. Já funcionam a config (`config.py`), o contrato (`packages/stagekit`), o job e o `manifest.json` (`jobs.py`, `manifest.py`), o runner com retomada por hash de entradas (`runner.py`, registro em `stages.py`) e os estágios ffmpeg `extract`/`mux` (`ffmpeg.py`), com `run`, `resume` e `status`. Os estágios com modelo (`stages/`) ainda não existem, então `run` para no `separate`; `setup`, `doctor` e `clean` ainda saem com "not implemented yet". Os testes de orquestração usam estágios falsos em `tests/fake_stages/` e um vídeo sintético gerado com ffmpeg. O plano e os tickets estão no `plan.md` e nos issues do GitHub (mapas #1 e #2).
 
 ## Comandos
 
@@ -17,7 +17,7 @@ uv run pyright               # tipos
 uv run pytest                # testes; um só: uv run pytest tests/test_cli.py::test_version
 ```
 
-O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `pytest` da raiz também roda os testes de `packages/stagekit` (o contrato compartilhado, instalado como dependência editável); ele precisa continuar compatível com Python 3.10+. O `ruff.toml` da raiz vale também para `packages/` e `stages/` e mira o Python 3.10, porque os estágios podem usar versões mais antigas.
+O CI (`.github/workflows/ci.yml`) roda essas quatro checagens, sem GPU. O `pytest` da raiz também roda os testes de `packages/stagekit` (o contrato compartilhado, instalado como dependência editável); ele precisa continuar compatível com Python 3.10+. O `ruff.toml` da raiz mira o Python 3.13; subprojetos que rodam em Python mais antigo (como `packages/stagekit`, 3.10+) têm um `ruff.toml` que estende o da raiz e baixa o `target-version`.
 
 Leia nesta ordem antes de implementar qualquer coisa:
 1. `docs/ARCHITECTURE.md`: estágios, contrato de arquivos, CLI, configuração e layout proposto do repositório.

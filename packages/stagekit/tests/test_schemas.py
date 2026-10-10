@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from stagekit import ContractError, read_json, validate, write_json
 
 SCHEMAS = [
