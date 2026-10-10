@@ -40,7 +40,7 @@ Leia nesta ordem antes de implementar qualquer coisa:
 
 ### Issue tracker
 
-Issues e specs ficam no GitHub Issues do repositório (via `gh`); o remote ainda não existe, então crie o repositório no GitHub antes de usar as skills que publicam issues. See `docs/agents/issue-tracker.md`.
+Issues e specs ficam no GitHub Issues de `Duck1201/dublador` (via `gh`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
