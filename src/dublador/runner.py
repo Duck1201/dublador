@@ -65,7 +65,22 @@ def inputs_hash(spec: StageSpec, job: Job, manifest: Manifest, config: Config) -
         path = job.dir / rel
         files[rel] = hash_file(path) if path.is_file() else None
     parts["files"] = files
+    if spec.models_inputs:
+        parts["models"] = {
+            rel: _tree_hash(config.paths.models_dir / rel) for rel in spec.models_inputs
+        }
     return hash_value(parts)
+
+
+def _tree_hash(path: Path) -> str | None:
+    """Hash of a file, or of every file under a directory (relative names included)."""
+    if path.is_file():
+        return hash_file(path)
+    if not path.is_dir():
+        return None
+    return hash_value(
+        {str(f.relative_to(path)): hash_file(f) for f in sorted(path.rglob("*")) if f.is_file()}
+    )
 
 
 def _outputs_present(spec: StageSpec, job: Job, manifest: Manifest) -> bool:

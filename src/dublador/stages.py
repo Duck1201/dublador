@@ -54,6 +54,9 @@ class StageSpec:
     python: Path | None = None  # default: <venvs_dir>/<name>/bin/python
     env: Mapping[str, str] = field(default_factory=dict)
     extra_wheels: tuple[ExtraWheel, ...] = ()
+    # Paths under models_dir whose content the stage's result depends on (e.g. the
+    # voice bank); part of the inputs hash, so regenerating them re-runs the stage.
+    models_inputs: tuple[str, ...] = ()
     version: str | None = None  # default: derived from the stage's code (see resolved_version)
 
     @property
@@ -96,6 +99,7 @@ def _digest(files: Iterable[Path], root: Path) -> str:
 
 
 _SEP = "02_separate"
+_VOICE_BANK = "voices/pt-BR"  # built by the synthesize stage at setup (voices/README.md)
 _CT2_ROCM = ExtraWheel(
     url="https://github.com/OpenNMT/CTranslate2/releases/download/v4.8.2/rocm-python-wheels-Linux.zip",
     sha256="b469e765f74ef85fb97bf4fe2347c8c6296dda00d7f5cf20658f23e95004a925",
@@ -137,6 +141,7 @@ PIPELINE: tuple[StageSpec, ...] = (
         inputs=(f"{_SEP}/vocals.wav", f"{_SEP}/accompaniment.wav", "04_diarize/transcript.json"),
         outputs=("05_speakers/speakers.json",),
         module="speakers",
+        models_inputs=(_VOICE_BANK,),
     ),
     StageSpec(
         "translate",
@@ -150,6 +155,7 @@ PIPELINE: tuple[StageSpec, ...] = (
         inputs=("06_translate/translation.json", "05_speakers/speakers.json"),
         outputs=("07_synthesize/synthesis.json",),
         module="synthesize",
+        models_inputs=(_VOICE_BANK,),
     ),
     StageSpec(
         "fit",

@@ -259,3 +259,19 @@ def test_fit_loop_reruns_only_overflowing_segments(
     manifest2, out2 = run(video, config, specs)
     assert (manifest2.path.parent / "calls.log").read_text().splitlines() == calls
     assert "fit (up to date)" in out2 and "mix (up to date)" in out2
+
+
+def test_inputs_hash_follows_models_inputs(
+    video: Path, config: Config, fake_pipeline: Pipeline
+) -> None:
+    specs = fake_pipeline()
+    job, manifest = open_job(video, config, specs, output=None, audio_track=None)
+    spec = StageSpec("toy", models_inputs=("voices/pt-BR",), version="test")
+    before = inputs_hash(spec, job, manifest, config)
+    bank = config.paths.models_dir / "voices" / "pt-BR" / "male"
+    bank.mkdir(parents=True)
+    (bank / "01.wav").write_bytes(b"one")
+    first = inputs_hash(spec, job, manifest, config)
+    assert first != before
+    (bank / "01.wav").write_bytes(b"two")
+    assert inputs_hash(spec, job, manifest, config) != first
