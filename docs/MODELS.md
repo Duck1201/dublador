@@ -400,6 +400,10 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 - [~] BS-RoFormer-1297 na RX 7600 (estágio `separate`, 2026-10-10): pico de **6,3 GB** de VRAM (com o desktop); em fp32 levou 3,2× o tempo real; com `use_autocast` (fp16) cai para ~1,0× (60 s de áudio em ~70 s com a carga do modelo), sem diferença mensurável nos stems (73 dB entre fp16 e fp32 em fala sintética sobre música; SDR da voz igual, 22,7 dB). `overlap = 2` leva a ~0,6×, também sem perda nesse teste. O pacote `audio-separator` 0.47 importa `audioread` sem declará-lo, e o extra `[cpu]` traz o `onnxruntime` de CPU. Falta a avaliação de qualidade com o vídeo de referência (SFX/multidão).
 - [ ] BS-RoFormer-1297 vs Mel-RoFormer Kim vs htdemucs_ft em 3 trechos (diálogo+música, diálogo+explosões, multidão): ouvir vazamento de SFX na voz e de voz no fundo; medir VRAM e tempo para 1 h com `--chunk_duration`.
 - [ ] pyannote community-1 na GPU: DER aproximado num trecho anotado à mão (5 min, 3+ falantes); tempo para 1 h.
+- [~] pyannote community-1 no estágio `diarize` (2026-10-10, pyannote.audio 4.0.7, torch 2.11+rocm7.2):
+  - Roda **na GPU** com `torch.backends.cudnn.enabled = False`, para o MIOpen não tentar compilar o LSTM da segmentação (o problema do VAD do WhisperX e do Kokoro).
+  - No `mlgoogle` (626 s): **79 s**, pico de 3,3 GB de VRAM no sistema, **2 falantes** (175 s e 305 s de fala depois da atribuição por palavra). O classificador de gênero deu os dois como masculinos (0,99).
+  - Falta o DER num trecho anotado à mão.
 - [ ] Classificador de gênero: acurácia por falante em ≥ 20 falantes conhecidos (incluir vozes femininas graves, masculinas agudas, criança).
 - [~] Classificador de gênero no estágio `speakers` (2026-10-10). O ECAPA de `JaesungHuh/voice-gender-classifier` (MIT) foi copiado para o estágio (`ecapa_gender.py`), porque não está no PyPI, e roda na CPU com o torch 2.11 CPU.
   - Nas 8 vozes do banco, acertou **8 de 8**, com confiança ≥ 0,97.
