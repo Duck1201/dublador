@@ -72,6 +72,24 @@ class OmniVoiceBackend:
             audio = audio[: int(max_seconds * self.sample_rate)]
         return audio
 
+    def design_voice(self, description: str, text: str, seed: int) -> tuple[np.ndarray, int]:
+        """A new voice from a description such as "female, young adult, low pitch"
+        (OmniVoice voice design); used to build the fallback voice bank."""
+        import torch  # pyright: ignore[reportMissingImports]
+
+        torch.manual_seed(seed)
+        try:
+            audio = self._model.generate(
+                text=text,
+                language=self.language,
+                instruct=description,
+                num_step=self.options["num_step"],
+                guidance_scale=self.options["guidance_scale"],
+            )[0]
+        finally:
+            torch.cuda.empty_cache()
+        return np.asarray(audio, dtype=np.float32).reshape(-1), self.sample_rate
+
     @staticmethod
     def prefetch(options: dict[str, Any]) -> None:
         _download({**DEFAULTS, **options})

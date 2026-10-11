@@ -1,7 +1,7 @@
 [project]
 name = "dublador-stage-speakers"
 version = "0.1.0"
-description = "dublador stage 05: per-speaker voice references (v0: single speaker, no model)"
+description = "dublador stage 05: per-speaker voice references, gender and voice choice"
 license = "Apache-2.0"
 requires-python = "==3.12.*"
 dependencies = [
@@ -9,6 +9,13 @@ dependencies = [
     "numpy",
     "soundfile>=0.12",
     "pyloudnorm>=0.1.1",
+    "scipy",
+    "librosa>=0.11",
+    # Gender classifier (ECAPA, ecapa_gender.py) runs on the CPU: no ROCm build needed.
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "huggingface-hub",
+    "safetensors",
 ]
 
 [dependency-groups]
@@ -26,3 +33,10 @@ environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 
 [tool.uv.sources]
 dublador-stagekit = { path = "../../packages/stagekit", editable = true }
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

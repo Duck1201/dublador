@@ -212,3 +212,66 @@ def test_stage_env_defaults(config: Config, monkeypatch: pytest.MonkeyPatch) -> 
     assert "HSA_OVERRIDE_GFX_VERSION" not in env  # only when set in the config
     monkeypatch.setenv("MIOPEN_FIND_MODE", "NORMAL")
     assert stage_env(config)["MIOPEN_FIND_MODE"] == "NORMAL"
+
+
+def loop_pipeline(base: Pipeline, fake_spec: Callable[..., StageSpec]) -> tuple[StageSpec, ...]:
+    """extract → separate → translate → synthesize → fit → mix → mux, with fakes."""
+    extract, separate, mix, mux = base()
+    translate = fake_spec(
+        "translate",
+        "fake_translate",
+        ("02_separate/vocals.wav",),
+        ("06_translate/translation.json",),
+    )
+    synthesize = fake_spec(
+        "synthesize",
+        "fake_synthesize",
+        ("06_translate/translation.json",),
+        ("07_synthesize/synthesis.json",),
+    )
+    fit = fake_spec(
+        "fit",
+        "fake_fit",
+        ("06_translate/translation.json", "07_synthesize/synthesis.json"),
+        ("08_fit/fit.json",),
+    )
+    return (extract, separate, translate, synthesize, fit, mix, mux)
+
+
+def test_fit_loop_reruns_only_overflowing_segments(
+    video: Path, config: Config, fake_pipeline: Pipeline, make_fake_spec: Callable[..., StageSpec]
+) -> None:
+    specs = loop_pipeline(fake_pipeline, make_fake_spec)
+    manifest, out = run(video, config, specs)
+    calls = (manifest.path.parent / "calls.log").read_text().splitlines()
+    assert calls == [
+        "translate:-", "synthesize:-", "fit:-",
+        # 1st iteration: both overflow; only seg_0002/3 get a shorter translation.
+        "translate:seg_0002,seg_0003", "synthesize:seg_0002,seg_0003", "fit:seg_0002,seg_0003",
+        # 2nd: seg_0003 still too long, it asks for a target duration (no translate).
+        "synthesize:seg_0003", "fit:seg_0003",
+    ]  # fmt: skip
+    assert "fit loop 1/2: 2 segment(s) over their window" in out
+    assert manifest.stage("fit")["warnings"] == []  # nothing overflows in the end
+    assert all(manifest.stage(n)["status"] == "done" for n in ("translate", "synthesize", "fit"))
+
+    # A resume finds everything current: no stage runs again.
+    manifest2, out2 = run(video, config, specs)
+    assert (manifest2.path.parent / "calls.log").read_text().splitlines() == calls
+    assert "fit (up to date)" in out2 and "mix (up to date)" in out2
+
+
+def test_inputs_hash_follows_models_inputs(
+    video: Path, config: Config, fake_pipeline: Pipeline
+) -> None:
+    specs = fake_pipeline()
+    job, manifest = open_job(video, config, specs, output=None, audio_track=None)
+    spec = StageSpec("toy", models_inputs=("voices/pt-BR",), version="test")
+    before = inputs_hash(spec, job, manifest, config)
+    bank = config.paths.models_dir / "voices" / "pt-BR" / "male"
+    bank.mkdir(parents=True)
+    (bank / "01.wav").write_bytes(b"one")
+    first = inputs_hash(spec, job, manifest, config)
+    assert first != before
+    (bank / "01.wav").write_bytes(b"two")
+    assert inputs_hash(spec, job, manifest, config) != first

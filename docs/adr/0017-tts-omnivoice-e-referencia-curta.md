@@ -1,6 +1,6 @@
 # ADR-0017 — TTS padrão: OmniVoice, com referência de clonagem curta
 
-- **Status:** Aceito (substitui a [ADR-0016](0016-tts-padrao-chatterbox-pt-br.md) e ajusta a duração da referência da [ADR-0002](0002-vozes-hibridas.md))
+- **Status:** Aceito (substitui a [ADR-0016](0016-tts-padrao-chatterbox-pt-br.md) e ajusta a duração da referência da [ADR-0002](0002-vozes-hibridas.md)); a clonagem deixa de ser o padrão na [ADR-0020](0020-vozes-nativas-do-banco-por-padrao.md)
 - **Data:** 2026-10-10
 
 ## Contexto

@@ -5,7 +5,9 @@ import pytest
 from translate.core import (
     Segment,
     TranslationError,
+    budgets,
     build_messages,
+    choose,
     parse_response,
     tidy,
     translate_all,
@@ -21,7 +23,7 @@ def segs(n: int) -> list[Segment]:
 
 def answer(ids: list[str], prefix: str = "linha") -> str:
     return json.dumps(
-        {"translations": [{"id": i, "text": f"{prefix.capitalize()} {i}"} for i in ids]}
+        {"translations": [{"id": i, "candidates": [f"{prefix.capitalize()} {i}"]} for i in ids]}
     )
 
 
@@ -48,7 +50,7 @@ def test_messages_carry_timing_and_context() -> None:
         {"speaker": "SPK_00", "text": "line 2", "translation": "linha 2"}
     ]
     assert payload["translate"][0] == {
-        "id": "seg_0003", "speaker": "SPK_00", "seconds": 1.5, "max_chars": 22, "text": "line 3",
+        "id": "seg_0003", "speaker": "SPK_00", "seconds": 1.5, "max_syllables": 0, "text": "line 3",
     }  # fmt: skip
     assert "Brazilian Portuguese" in messages[0]["content"]
 
@@ -57,11 +59,13 @@ def test_messages_carry_timing_and_context() -> None:
     ("raw", "error"),
     [
         ("not json", "expected JSON"),
-        ('{"translations": [{"id": "seg_0001", "text": "a"}]}', "missing ids: seg_0002"),
+        ('{"translations": [{"id": "seg_0001", "candidates": ["a"]}]}', "missing ids: seg_0002"),
         (
-            '{"translations": [{"id": "seg_0001", "text": "a"}, {"id": "seg_0002", "text": " "}]}',
+            '{"translations": [{"id": "seg_0001", "candidates": ["a"]},'
+            ' {"id": "seg_0002", "candidates": [" "]}]}',
             "empty",
         ),
+        ('{"translations": [{"id": "seg_0001", "text": "a"}]}', "expected JSON"),
     ],
 )
 def test_parse_response_errors(raw: str, error: str) -> None:
@@ -132,3 +136,45 @@ def test_known_translations_are_not_requested() -> None:
 )
 def test_tidy(raw: str, expected: str) -> None:
     assert tidy(raw) == expected
+
+
+def test_genders_reach_the_payload() -> None:
+    from translate.core import with_genders
+
+    lines = [("SPK_00", "Thanks."), ("SPK_01", "Sure."), ("SPK_01", "Tired?")]
+    segs = with_genders(
+        [Segment(f"seg_{i:04d}", i, i + 1, spk, text) for i, (spk, text) in enumerate(lines, 1)],
+        {"SPK_00": "male", "SPK_01": "female"},
+    )
+    assert [(s.speaker_gender, s.listener_gender) for s in segs] == [
+        ("male", "unknown"), ("female", "male"), ("female", "male"),
+    ]  # fmt: skip
+    payload = json.loads(
+        build_messages(segs[1:2], [], [], source="en", target="pt-BR")[1]["content"]
+    )
+    line = payload["translate"][0]
+    assert line["speaker_gender"] == "female" and line["listener_gender"] == "male"
+    unknown = json.loads(
+        build_messages(segs[:1], [], [], source="en", target="pt-BR")[1]["content"]
+    )
+    assert "listener_gender" not in unknown["translate"][0]
+
+
+def test_choose_prefers_the_longest_that_fits() -> None:
+    cands = ["Hoje vamos mostrar um produto novo", "Hoje mostramos um produto", "Um produto"]
+    assert choose(cands, 9) == "Hoje mostramos um produto"  # 9 syllables
+    assert choose(cands, 100) == cands[0]
+    assert choose(cands, 2) == "Um produto"  # nothing fits: the shortest
+    assert choose(cands, 0) == cands[0]  # no budget
+
+
+def test_budgets_use_the_gap_to_the_next_line() -> None:
+    lines = [Segment("seg_0001", 0.0, 1.0, "A", "x"), Segment("seg_0002", 3.15, 4.0, "B", "y")]
+    assert budgets(lines, syllables_per_second=5.0, gap=0.15) == {"seg_0001": 15, "seg_0002": 4}
+
+
+def test_shorten_lines_carry_the_current_text() -> None:
+    seg = Segment("seg_0001", 0, 2, "A", "Hello there", budget=6, shorten="Olá a todos vocês aí")
+    line = json.loads(build_messages([seg], [], [], source="en", target="pt-BR")[1]["content"])
+    assert line["translate"][0]["shorten"] == "Olá a todos vocês aí"
+    assert line["translate"][0]["max_syllables"] == 6

@@ -20,6 +20,7 @@ ollama_url = "http://localhost:11434"
 # Stage settings (passed through to the translate stage):
 # batch_size = 12          # segments per request
 # context_segments = 3     # neighbouring lines sent as context
+# syllables_per_second = 5.7  # TTS speech rate for the syllable budget (calibrated with OmniVoice)
 # retries = 3              # re-asks on invalid JSON before splitting the batch
 # temperature = 0.2
 # seed = 42
@@ -41,11 +42,21 @@ ollama_url = "http://localhost:11434"
 # max_segment_seconds = 12.0
 # split_pause_seconds = 0.6
 
+[diarize]
+# device = "cuda"             # pyannote community-1; falls back to the CPU
+# num_speakers = 2            # force the speaker count (also `dublador run --num-speakers`)
+# min_speakers = 1
+# max_speakers = 4
+# min_speaker_seconds = 2.0   # smaller speakers are merged into the closest one
+
 [speakers]
 # min_reference_seconds = 3.0           # voice-cloning clip length (ADR-0017: short clips carry less accent)
 # fallback_min_reference_seconds = 2.0  # accept a shorter clip, with a warning
 # max_reference_seconds = 4.5
 # target_reference_seconds = 3.5
+# gender_clips = 5                      # clean clips per speaker for the gender vote
+# min_gender_confidence = 0.3           # below this, a clear median F0 decides, else "unknown"
+# voice_strategy = "bank"               # bank: native pt-BR voice closest in pitch (ADR-0020); clone: each speaker's own English reference
 # max_gap_seconds = 0.5                 # join segments separated by at most this pause
 # reference_lufs = -20.0
 
@@ -57,8 +68,11 @@ ollama_url = "http://localhost:11434"
 # num_step = 32             # omnivoice option: decoding steps (fewer = faster, rougher)
 
 [fit]
-max_speedup = 1.25
-max_fit_iterations = 2
+max_speedup = 1.25         # time-stretch limit for a normal fit (pitch kept)
+max_fit_iterations = 2     # shorten-the-translation, then target-duration passes
+# gap_seconds = 0.15       # silence kept before the next line
+# max_forced_speedup = 1.6 # cap for what still overflows after the loop
+# min_speedup = 0.85       # slow short clips down toward the original length (1.0 = off)
 
 [output]
 format = "mkv"                     # mkv | mp4

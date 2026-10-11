@@ -400,7 +400,16 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 - [~] BS-RoFormer-1297 na RX 7600 (estágio `separate`, 2026-10-10): pico de **6,3 GB** de VRAM (com o desktop); em fp32 levou 3,2× o tempo real; com `use_autocast` (fp16) cai para ~1,0× (60 s de áudio em ~70 s com a carga do modelo), sem diferença mensurável nos stems (73 dB entre fp16 e fp32 em fala sintética sobre música; SDR da voz igual, 22,7 dB). `overlap = 2` leva a ~0,6×, também sem perda nesse teste. O pacote `audio-separator` 0.47 importa `audioread` sem declará-lo, e o extra `[cpu]` traz o `onnxruntime` de CPU. Falta a avaliação de qualidade com o vídeo de referência (SFX/multidão).
 - [ ] BS-RoFormer-1297 vs Mel-RoFormer Kim vs htdemucs_ft em 3 trechos (diálogo+música, diálogo+explosões, multidão): ouvir vazamento de SFX na voz e de voz no fundo; medir VRAM e tempo para 1 h com `--chunk_duration`.
 - [ ] pyannote community-1 na GPU: DER aproximado num trecho anotado à mão (5 min, 3+ falantes); tempo para 1 h.
+- [~] pyannote community-1 no estágio `diarize` (2026-10-10, pyannote.audio 4.0.7, torch 2.11+rocm7.2):
+  - Roda **na GPU** com `torch.backends.cudnn.enabled = False`, para o MIOpen não tentar compilar o LSTM da segmentação (o problema do VAD do WhisperX e do Kokoro).
+  - No `mlgoogle` (626 s): **79 s**, pico de 3,3 GB de VRAM no sistema, **2 falantes** (175 s e 305 s de fala depois da atribuição por palavra). O classificador de gênero deu os dois como masculinos (0,99).
+  - Falta o DER num trecho anotado à mão.
 - [ ] Classificador de gênero: acurácia por falante em ≥ 20 falantes conhecidos (incluir vozes femininas graves, masculinas agudas, criança).
+- [~] Classificador de gênero no estágio `speakers` (2026-10-10). O ECAPA de `JaesungHuh/voice-gender-classifier` (MIT) foi copiado para o estágio (`ecapa_gender.py`), porque não está no PyPI, e roda na CPU com o torch 2.11 CPU.
+  - Nas 8 vozes do banco, acertou **8 de 8**, com confiança ≥ 0,97.
+  - O F0 mediano das vozes masculinas geradas ficou em 160–190 Hz. Isso está acima do limiar de 145 Hz do desempate, então o F0 só decide vozes graves ou agudas sem ambiguidade.
+  - Ainda falta a acurácia em ≥ 20 falantes reais.
+- [x] Banco de vozes PT-BR (2026-10-10): 4 vozes masculinas e 4 femininas, geradas pelo voice design do OmniVoice no `dublador setup` (cerca de 1 min no total). Descrições e seeds estão em [`voices/README.md`](../voices/README.md).
 
 **Tradução (Ollama)**
 - [x] `ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M` — 2026-10-09: instalado (18 GB). O `ollama show` lista a capability `thinking`, mas na prática a resposta vem sem raciocínio (`thinking` vazio); ~23 tok/s no Vulkan com offload. Opcionais ainda não baixados: `gemma4:26b-a4b-it-qat`, `translategemma:12b`.
@@ -421,6 +430,7 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
   - Kokoro (`pf_dora`, `pm_alex`, `pm_santa`), direto e como referência do Chatterbox: ruim. O LSTM do Kokoro falha no MIOpen da gfx1102 (`miopenStatusUnknownError`), então ele só roda na CPU.
 - [ ] Instalar e gerar as mesmas 30 frases PT-BR (com nasais, "tch/dj", números, siglas, nomes próprios em inglês) com a **shortlist do §6.2** (Qwen3-TTS, FireRedTTS3, MOSS-TTS-Local, OmniVoice, Chatterbox pt-br, dots.tts MF) — usando **a mesma referência em inglês** e **uma referência PT-BR**.
 - [ ] Avaliar: sotaque BR (nota 1–5, cego), similaridade de voz (ECAPA cosine ref×saída), inteligibilidade (WER com Whisper em PT), artefatos/alucinações (palavras puladas/repetidas), VRAM, RTF.
+- [x] **Taxa de fala do OmniVoice para o orçamento em sílabas (2026-10-10):** **5,7 sílabas/s** na mediana (p25 5,4, p75 5,9; 129 falas do `mlgoogle`), contadas com a heurística de `translate/syllables.py`. É o padrão de `translate.syllables_per_second` (ADR-0018).
 - [ ] OmniVoice (`duration=`) e MOSS-TTS (`tokens=`): precisão da duração-alvo (erro médio em s) e naturalidade quando a duração alvo é apertada (−15 %).
 - [ ] Chatterbox: funciona com override `torch==2.11.0+rocm7.2`? Testar `cfg_weight=0` para cross-lingual.
 - [ ] Medir taxa de fala (caracteres/s) de cada TTS em PT-BR para calibrar `max_chars` do tradutor.

@@ -16,6 +16,18 @@ def resample(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
     return resample_poly(audio, ratio.numerator, ratio.denominator, axis=0).astype(np.float32)
 
 
+def fade(clip: np.ndarray, rate: int, seconds: float = 0.01) -> np.ndarray:
+    """Short linear fade in and out, so cut or stretched clips do not click."""
+    n = min(int(seconds * rate), len(clip) // 2)
+    if n <= 0:
+        return clip
+    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)
+    out = clip.astype(np.float32, copy=True)
+    out[:n] *= ramp
+    out[-n:] *= ramp[::-1]
+    return out
+
+
 def place(
     clips: Iterable[tuple[float, np.ndarray]], *, rate: int, length: int, channels: int
 ) -> np.ndarray:

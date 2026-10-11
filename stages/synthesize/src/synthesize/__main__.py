@@ -15,9 +15,9 @@ from stagekit import StageContext, StageError, atomic_path, main, read_json, wri
 from stagekit.gpu import wait_for_vram
 from stagekit.probe import report
 
-from synthesize import backends
+from synthesize import backends, voicebank
 from synthesize.audio import trim_silence
-from synthesize.plan import jobs, max_seconds, ran_away, split, voices
+from synthesize.plan import MissingBankVoice, jobs, max_seconds, ran_away, split, voices
 
 VERSION = metadata.version("dublador-stage-synthesize")
 DEFAULTS: dict[str, Any] = {
@@ -45,13 +45,42 @@ def _previous(path: Path) -> dict[str, dict[str, Any]]:
     return {s["id"]: {**s, "_sample_rate": doc["sample_rate"]} for s in doc["segments"]}
 
 
-def _entry(job_id: str, duration: float, input_hash: str) -> dict[str, Any]:
-    return {
+def _entry(
+    job_id: str, duration: float, input_hash: str, target: float | None = None
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
         "id": job_id,
         "path": f"{SEGMENTS_DIR}/{job_id}.wav",
         "duration": round(duration, 3),
         "input_hash": input_hash,
     }
+    if target is not None:
+        entry["target_duration"] = target
+    return entry
+
+
+def _durations(
+    ctx: StageContext,
+    translation: dict[str, Any],
+    by_speaker: dict[str, Any],
+    backend_key: dict[str, Any],
+    previous: dict[str, dict[str, Any]],
+) -> dict[str, float]:
+    """Target lengths for the backend: what the fit loop asks for the --only ids,
+    plus earlier targets while the rest of the segment's inputs are unchanged."""
+    earlier = {i: p["target_duration"] for i, p in previous.items() if p.get("target_duration")}
+    sticky = {
+        j.id: j.forced_duration
+        for j in jobs(translation, by_speaker, backend_key, earlier)
+        if j.forced_duration is not None and previous[j.id]["input_hash"] == j.input_hash
+    }
+    requested: dict[str, float] = {}
+    fit_path = ctx.stage_dir("fit") / "fit.json"
+    if ctx.only is not None and fit_path.is_file():
+        for seg in read_json(fit_path, "fit/v1")["segments"]:
+            if seg["id"] in ctx.only and seg.get("target_duration"):
+                requested[seg["id"]] = seg["target_duration"]
+    return {**sticky, **requested}
 
 
 def run(ctx: StageContext) -> None:
@@ -69,21 +98,35 @@ def run(ctx: StageContext) -> None:
     except ValueError as e:
         raise StageError(str(e)) from e
 
-    by_speaker = voices(speakers, ctx.job_dir)
+    models_dir = Path(ctx.config["paths"]["models_dir"])
+    try:
+        by_speaker = voices(speakers, ctx.job_dir, models_dir)
+    except MissingBankVoice as e:
+        raise StageError(
+            f"bank voice {e} is missing from {voicebank.bank_dir(models_dir)};"
+            " run `dublador setup --only synthesize`"
+        ) from e
     missing = sorted({s["speaker"] for s in translation["segments"]} - set(by_speaker))
     if missing:
-        raise StageError(
-            f"no voice reference for {', '.join(missing)} (the voice bank arrives in M2)"
-        )
+        raise StageError(f"no voice reference or bank voice for {', '.join(missing)}")
 
-    all_jobs = jobs(translation, by_speaker, {"backend": backend.name, **backend.settings()})
+    backend_key = {"backend": backend.name, **backend.settings()}
     out_path = ctx.out_dir / "synthesis.json"
     previous = _previous(out_path)
+    durations = (
+        _durations(ctx, translation, by_speaker, backend_key, previous)
+        if backend.supports_target_duration
+        else {}
+    )
+    all_jobs = jobs(translation, by_speaker, backend_key, durations)
     existing = {p.stem for p in (ctx.job_dir / SEGMENTS_DIR).glob("*.wav")}
     todo, keep = split(all_jobs, previous, existing, ctx.only)
     ctx.progress.log(f"{len(todo)} to synthesize, {len(keep)} cached")
 
-    entries = {j.id: _entry(j.id, previous[j.id]["duration"], j.input_hash) for j in keep}
+    entries = {
+        j.id: _entry(j.id, previous[j.id]["duration"], j.input_hash, j.forced_duration)
+        for j in keep
+    }
     sample_rate = next((previous[j.id]["_sample_rate"] for j in keep), 0)
 
     def checkpoint() -> None:
@@ -109,9 +152,14 @@ def run(ctx: StageContext) -> None:
             voice = by_speaker[job.speaker]
             if job.speaker not in prepared:
                 prepared[job.speaker] = backend.prepare_voice(str(voice.ref_wav), voice.ref_text)
-            budget = max_seconds(job)
+            budget = max(max_seconds(job), (job.forced_duration or 0) + 1.0)
             for attempt in (1, 2):  # sampling is random: a runaway rarely repeats
-                audio = backend.synthesize(job.text, prepared[job.speaker], max_seconds=budget)
+                audio = backend.synthesize(
+                    job.text,
+                    prepared[job.speaker],
+                    target_duration=job.forced_duration,
+                    max_seconds=budget,
+                )
                 if audio.size == 0 or not np.isfinite(audio).all():
                     raise StageError(f"{job.id}: {backend.name} produced no valid audio")
                 if not ran_away(len(audio) / backend.sample_rate, budget):
@@ -129,7 +177,9 @@ def run(ctx: StageContext) -> None:
             audio = trim_silence(audio, sample_rate)
             with atomic_path(ctx.job_dir / SEGMENTS_DIR / f"{job.id}.wav") as tmp:
                 soundfile.write(str(tmp), audio, sample_rate, subtype="PCM_16")
-            entries[job.id] = _entry(job.id, len(audio) / sample_rate, job.input_hash)
+            entries[job.id] = _entry(
+                job.id, len(audio) / sample_rate, job.input_hash, job.forced_duration
+            )
             ctx.progress.progress(n, len(todo))
             if n % opts["checkpoint_every"] == 0:
                 checkpoint()
@@ -140,7 +190,17 @@ def run(ctx: StageContext) -> None:
 
 def prefetch(config: dict[str, Any]) -> None:
     opts, backend_opts = settings(config)
-    backends.backend_class(opts["backend"]).prefetch(backend_opts)
+    cls = backends.backend_class(opts["backend"])
+    cls.prefetch(backend_opts)
+    models_dir = Path(config["paths"]["models_dir"])
+    if not voicebank.missing(models_dir) or not hasattr(cls, "design_voice"):
+        return
+    target = config.get("languages", {}).get("target", "pt-BR")
+    backend = backends.create(
+        opts["backend"], backend_opts, language=target, models_dir=str(models_dir)
+    )
+    backend.load()
+    voicebank.build(models_dir, backend.design_voice)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def probe() -> dict[str, Any]:

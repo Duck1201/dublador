@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Duck1201/dublador/schemas/fit/v1",
+  "title": "Time-fitted speech per segment from stage 08 (fit)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sample_rate", "segments"],
+  "properties": {
+    "schema": { "const": "fit/v1" },
+    "sample_rate": { "type": "integer", "minimum": 1 },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "path", "start", "end", "window", "natural", "ratio",
+          "strategy", "attempt", "shorten_to", "target_duration", "input_hash"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^seg_[0-9]{4,}$" },
+          "path": { "description": "Fitted WAV, relative to the job dir", "type": "string" },
+          "start": { "description": "Where the clip starts in the video (s)", "type": "number", "minimum": 0 },
+          "end": { "description": "Where the fitted clip ends (s)", "type": "number", "minimum": 0 },
+          "window": { "description": "Room until the next line minus the gap (s)", "type": "number", "minimum": 0 },
+          "natural": { "description": "Duration of the synthesized clip (s)", "type": "number", "minimum": 0 },
+          "ratio": { "description": "Time-stretch speed factor applied (1 = none)", "type": "number", "minimum": 0 },
+          "strategy": { "enum": ["fits", "silence", "stretch", "overflow"] },
+          "attempt": { "description": "Fit-loop attempts that overflowed in a row", "type": "integer", "minimum": 0 },
+          "shorten_to": {
+            "description": "Syllable target for translate's shorten mode (first overflow)",
+            "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+          },
+          "target_duration": {
+            "description": "Duration to ask the TTS for (later overflows)",
+            "anyOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "type": "null" }]
+          },
+          "input_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}

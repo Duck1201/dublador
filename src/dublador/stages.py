@@ -54,6 +54,9 @@ class StageSpec:
     python: Path | None = None  # default: <venvs_dir>/<name>/bin/python
     env: Mapping[str, str] = field(default_factory=dict)
     extra_wheels: tuple[ExtraWheel, ...] = ()
+    # Paths under models_dir whose content the stage's result depends on (e.g. the
+    # voice bank); part of the inputs hash, so regenerating them re-runs the stage.
+    models_inputs: tuple[str, ...] = ()
     version: str | None = None  # default: derived from the stage's code (see resolved_version)
 
     @property
@@ -96,13 +99,14 @@ def _digest(files: Iterable[Path], root: Path) -> str:
 
 
 _SEP = "02_separate"
+_VOICE_BANK = "voices/pt-BR"  # built by the synthesize stage at setup (voices/README.md)
 _CT2_ROCM = ExtraWheel(
     url="https://github.com/OpenNMT/CTranslate2/releases/download/v4.8.2/rocm-python-wheels-Linux.zip",
     sha256="b469e765f74ef85fb97bf4fe2347c8c6296dda00d7f5cf20658f23e95004a925",
     member="temp-linux/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
 )
 
-# M1 pipeline. diarize and fit join in M2/M3.
+# M3 pipeline: the fit loop (runner.py) repeats translate -> synthesize -> fit for overflows.
 PIPELINE: tuple[StageSpec, ...] = (
     StageSpec(
         "extract",
@@ -127,14 +131,21 @@ PIPELINE: tuple[StageSpec, ...] = (
         extra_wheels=(_CT2_ROCM,),
     ),
     StageSpec(
+        "diarize",
+        inputs=(f"{_SEP}/vocals.wav", "03_transcribe/transcript.json"),
+        outputs=("04_diarize/diarization.json", "04_diarize/transcript.json"),
+        module="diarize",
+    ),
+    StageSpec(
         "speakers",
-        inputs=(f"{_SEP}/vocals.wav", f"{_SEP}/accompaniment.wav", "03_transcribe/transcript.json"),
+        inputs=(f"{_SEP}/vocals.wav", f"{_SEP}/accompaniment.wav", "04_diarize/transcript.json"),
         outputs=("05_speakers/speakers.json",),
         module="speakers",
+        models_inputs=(_VOICE_BANK,),
     ),
     StageSpec(
         "translate",
-        inputs=("03_transcribe/transcript.json", "05_speakers/speakers.json"),
+        inputs=("04_diarize/transcript.json", "05_speakers/speakers.json"),
         outputs=("06_translate/translation.json",),
         config_sections=("translate", "languages"),
         module="translate",
@@ -144,14 +155,17 @@ PIPELINE: tuple[StageSpec, ...] = (
         inputs=("06_translate/translation.json", "05_speakers/speakers.json"),
         outputs=("07_synthesize/synthesis.json",),
         module="synthesize",
+        models_inputs=(_VOICE_BANK,),
+    ),
+    StageSpec(
+        "fit",
+        inputs=("06_translate/translation.json", "07_synthesize/synthesis.json"),
+        outputs=("08_fit/fit.json",),
+        module="fit",
     ),
     StageSpec(
         "mix",
-        inputs=(
-            "07_synthesize/synthesis.json",
-            "06_translate/translation.json",
-            f"{_SEP}/accompaniment.wav",
-        ),
+        inputs=("08_fit/fit.json", f"{_SEP}/accompaniment.wav"),
         outputs=(ffmpeg.DUB_WAV,),
         module="mix",
     ),

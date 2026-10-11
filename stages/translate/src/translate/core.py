@@ -3,13 +3,15 @@
 import json
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from stagekit import hash_value
 
-PROMPT_VERSION = "v0.3"
-CHARS_PER_SECOND = 15  # rough pt-BR speaking rate; calibrated per TTS in M3
+from translate import syllables
+
+PROMPT_VERSION = "v0.5"
+CANDIDATES = 3
 
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -18,8 +20,16 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"id": {"type": "string"}, "text": {"type": "string"}},
-                "required": ["id", "text"],
+                "properties": {
+                    "id": {"type": "string"},
+                    "candidates": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": CANDIDATES,
+                    },
+                },
+                "required": ["id", "candidates"],
             },
         }
     },
@@ -33,10 +43,16 @@ Rules:
 - Keep the meaning, tone and register of each line. Do not add explanations or notes.
 - Use normal capitalization and punctuation, even when the source line lacks them.
 - Keep names, brands and technical terms that people say in English.
-- Each line is dubbed over the original timing: keep it about as short as the original,
-  never longer than its "max_chars".
+- Make gendered words agree with the speaker ("speaker_gender": obrigado/obrigada,
+  cansado/cansada) and with the person spoken to ("listener_gender"), when given.
+- Each line is dubbed over the original timing and must be speakable in about
+  "max_syllables" syllables. Give 3 candidates per line: first the most natural
+  translation, then two progressively shorter ones that keep the meaning (drop
+  filler words, use shorter synonyms, merge clauses).
+- A line with "shorten" already has a translation that is too long: give 3 shorter
+  rewrites of that text, each within "max_syllables" if possible, same meaning.
 - Translate only the lines in "translate"; the context lines are for reference.
-- Answer with JSON: {{"translations": [{{"id": "...", "text": "..."}}]}},
+- Answer with JSON: {{"translations": [{{"id": "...", "candidates": ["...", "...", "..."]}}]}},
   one entry per id, in the same order."""
 
 Chat = Callable[[list[dict[str, str]]], str]
@@ -53,12 +69,59 @@ class Segment:
     end: float
     speaker: str
     text: str
+    speaker_gender: str = "unknown"
+    listener_gender: str = "unknown"
+    budget: int = 0  # syllables that fit the window; 0 means no limit
+    shorten: str | None = None  # current translation to rewrite shorter
+
+
+def budgets(
+    segments: Sequence[Segment], *, syllables_per_second: float, gap: float
+) -> dict[str, int]:
+    """Syllables that fit from each line's start to the next line's start (any
+    speaker) minus `gap`; the last line gets its own duration."""
+    ordered = sorted(segments, key=lambda s: s.start)
+    out = {}
+    for i, seg in enumerate(ordered):
+        end = ordered[i + 1].start - gap if i + 1 < len(ordered) else seg.end
+        window = max(end - seg.start, seg.end - seg.start, 0.3)
+        out[seg.id] = max(2, int(window * syllables_per_second))
+    return out
+
+
+def choose(candidates: Sequence[str], budget: int) -> str:
+    """The longest candidate within the budget (the most faithful), or the shortest."""
+    if not candidates:
+        raise TranslationError("no candidates")
+    if budget <= 0:
+        return candidates[0]
+    fitting = [c for c in candidates if syllables.count(c) <= budget]
+    if fitting:
+        return max(fitting, key=syllables.count)
+    return min(candidates, key=syllables.count)
+
+
+def with_genders(segments: Sequence[Segment], genders: dict[str, str]) -> list[Segment]:
+    """Fill in who speaks and who is spoken to: the last other speaker before each line."""
+    out, last_other, previous = [], "unknown", None
+    for seg in segments:
+        if previous is not None and previous != seg.speaker:
+            last_other = genders.get(previous, "unknown")
+        out.append(
+            replace(
+                seg, speaker_gender=genders.get(seg.speaker, "unknown"), listener_gender=last_other
+            )
+        )
+        previous = seg.speaker
+    return out
 
 
 def input_hash(seg: Segment, *, model: str, source: str, target: str) -> str:
     return hash_value(
         {
             "text": seg.text,
+            "genders": [seg.speaker_gender, seg.listener_gender],
+            "budget": seg.budget,
             "model": model,
             "source": source,
             "target": target,
@@ -69,13 +132,14 @@ def input_hash(seg: Segment, *, model: str, source: str, target: str) -> str:
 
 def _line(seg: Segment) -> dict[str, Any]:
     seconds = round(seg.end - seg.start, 1)
-    return {
-        "id": seg.id,
-        "speaker": seg.speaker,
-        "seconds": seconds,
-        "max_chars": max(8, int(seconds * CHARS_PER_SECOND)),
-        "text": seg.text,
-    }
+    line: dict[str, Any] = {"id": seg.id, "speaker": seg.speaker}
+    for key in ("speaker_gender", "listener_gender"):
+        if getattr(seg, key) != "unknown":
+            line[key] = getattr(seg, key)
+    line.update(seconds=seconds, max_syllables=seg.budget, text=seg.text)
+    if seg.shorten is not None:
+        line["shorten"] = seg.shorten
+    return line
 
 
 def build_messages(
@@ -108,12 +172,15 @@ def tidy(text: str) -> str:
     return _SENTENCE_START.sub(lambda m: m.group(1) + m.group(2) + m.group(3).upper(), text.strip())
 
 
-def parse_response(raw: str, expected: Sequence[str]) -> dict[str, str]:
-    """Translations by id, or a TranslationError saying what is wrong."""
+def parse_response(raw: str, expected: Sequence[str]) -> dict[str, list[str]]:
+    """Candidates by id, or a TranslationError saying what is wrong."""
     try:
         data = json.loads(raw)
         items = data["translations"]
-        found = {str(item["id"]): tidy(str(item["text"])) for item in items}
+        found = {
+            str(item["id"]): [tidy(str(c)) for c in item["candidates"] if str(c).strip()]
+            for item in items
+        }
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         raise TranslationError(f"response is not the expected JSON ({e})") from e
     missing = [i for i in expected if i not in found]
@@ -139,10 +206,12 @@ def translate_batch(
     messages = build_messages(batch, before, after, source=source, target=target)
     expected = [s.id for s in batch]
     error: TranslationError | None = None
+    by_id = {s.id: s for s in batch}
     for _ in range(retries + 1):
         raw = chat(messages)
         try:
-            return parse_response(raw, expected)
+            found = parse_response(raw, expected)
+            return {i: choose(found[i], by_id[i].budget) for i in expected}
         except TranslationError as e:
             error = e
             messages = [

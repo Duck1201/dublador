@@ -68,6 +68,16 @@
           "text": {
             "type": "string"
           },
+          "syllables": {
+            "description": "Syllables of `text` (translate.syllables), when known",
+            "type": "integer",
+            "minimum": 0
+          },
+          "budget": {
+            "description": "Syllables that fit the timing window; 0 means no limit",
+            "type": "integer",
+            "minimum": 0
+          },
           "input_hash": {
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"

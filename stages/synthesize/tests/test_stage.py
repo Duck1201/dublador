@@ -150,3 +150,88 @@ def test_unknown_backend(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     with pytest.raises(SystemExit):
         run_stage(job, config)
     assert "unknown TTS backend 'nope'" in capsys.readouterr().err
+
+
+def bank_job(tmp_path: Path, *, with_bank: bool) -> tuple[Path, Path]:
+    job, config = make_job(tmp_path, ["Olá", "Tudo bem?"])
+    models = tmp_path / "models"
+    doc = read_json(job / "05_speakers" / "speakers.json", "speakers/v1")
+    doc["speakers"].append({"id": "SPK_01", "speech_seconds": 1.0, "gender": "female",
+                            "gender_confidence": 0.9, "strategy": "bank", "voice": "female_02",
+                            "reference": None})  # fmt: skip
+    write_json(job / "05_speakers" / "speakers.json", doc)
+    tr = read_json(job / "06_translate" / "translation.json", "translation/v1")
+    tr["segments"][1]["speaker"] = "SPK_01"
+    write_json(job / "06_translate" / "translation.json", tr)
+    if with_bank:
+        folder = models / "voices" / "pt-BR" / "female"
+        folder.mkdir(parents=True)
+        soundfile.write(str(folder / "02.wav"), np.zeros(24000, dtype=np.float32), 24000)
+        (folder / "02.txt").write_text("frase do banco\n")
+    config.write_text(config.read_text().replace('models_dir = "/m"', f'models_dir = "{models}"'))
+    return job, config
+
+
+def test_bank_voice_is_cloned_like_a_reference(tmp_path: Path) -> None:
+    job, config = bank_job(tmp_path, with_bank=True)
+    run_stage(job, config)
+    assert CALLS == ["load", "voice:SPK_00.wav", "say:Olá", "voice:02.wav", "say:Tudo bem?"]
+
+
+def test_missing_bank_voice_says_how_to_fix(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    job, config = bank_job(tmp_path, with_bank=False)
+    with pytest.raises(SystemExit):
+        run_stage(job, config)
+    err = capsys.readouterr().err
+    assert "bank voice female_02 is missing" in err and "dublador setup --only synthesize" in err
+
+
+DURATIONS: list[tuple[str, float | None]] = []
+
+
+class TimedBackend(FakeBackend):
+    name = "timed"
+    supports_target_duration = True
+
+    def synthesize(
+        self,
+        text: str,
+        voice: Any,
+        target_duration: float | None = None,
+        max_seconds: float | None = None,
+    ) -> np.ndarray:
+        DURATIONS.append((text, target_duration))
+        self.sample_rate = 24000
+        seconds = target_duration or 0.1 * len(text)
+        return np.full(int(seconds * 24000), 0.1, dtype=np.float32)
+
+
+def test_fit_loop_target_duration_sticks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(backends.BACKENDS, "timed", f"{__name__}:TimedBackend")
+    DURATIONS.clear()
+    job, config = make_job(tmp_path, ["Olá", "Uma frase comprida demais"])
+    config.write_text(config.read_text().replace('"fake"', '"timed"'))
+    run_stage(job, config)
+    overflow = {
+        "id": "seg_0002", "path": "08_fit/segments/seg_0002.wav", "start": 4.0, "end": 6.0,
+        "window": 2.5, "natural": 2.5, "ratio": 1.6, "strategy": "overflow", "attempt": 2,
+        "shorten_to": None, "target_duration": 2.5, "input_hash": "sha256:" + "0" * 64,
+    }  # fmt: skip
+    fit = {"schema": "fit/v1", "sample_rate": 24000, "segments": [overflow]}
+    write_json(job / "08_fit" / "fit.json", fit)
+    DURATIONS.clear()
+    doc = run_stage(job, config, "--only", "seg_0002")
+    assert DURATIONS == [("Uma frase comprida demais", 2.5)]
+    assert doc["segments"][1]["target_duration"] == 2.5 and doc["segments"][1]["duration"] == 2.5
+
+    DURATIONS.clear()
+    run_stage(job, config)  # a later full run keeps the fitted length (cached)
+    assert DURATIONS == []
+    assert (
+        read_json(job / "07_synthesize" / "synthesis.json", "synthesis/v1")["segments"][1][
+            "target_duration"
+        ]
+        == 2.5
+    )

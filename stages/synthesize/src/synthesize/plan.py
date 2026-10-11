@@ -7,6 +7,8 @@ from typing import Any
 
 from stagekit import hash_file, hash_value
 
+from synthesize import voicebank
+
 # Generation budget per segment. Normal pt-BR speech runs ~0.07 s per character; the
 # budget leaves room for slow voices while stopping a runaway generation early.
 MIN_SECONDS = 4.0
@@ -27,18 +29,29 @@ class Job:
     id: str
     speaker: str
     text: str
-    target_duration: float
+    target_duration: float  # the original line's length
     input_hash: str
+    forced_duration: float | None = None  # asked by the fit loop (fit.json)
 
 
-def voices(speakers: Mapping[str, Any], job_dir: Path) -> dict[str, Voice]:
-    """Cloning voices by speaker id; speakers without a reference are left out."""
+class MissingBankVoice(Exception):
+    pass
+
+
+def voices(speakers: Mapping[str, Any], job_dir: Path, models_dir: Path) -> dict[str, Voice]:
+    """The reference each speaker is cloned from: its own clip, or a bank voice."""
     found = {}
     for spk in speakers["speakers"]:
         ref = spk.get("reference")
         if spk["strategy"] == "clone" and ref:
             wav = job_dir / ref["path"]
             found[spk["id"]] = Voice(spk["id"], wav, ref["text"], hash_file(wav))
+        elif spk["strategy"] == "bank" and spk.get("voice"):
+            wav, txt = voicebank.paths(models_dir, spk["voice"])
+            if not (wav.is_file() and txt.is_file()):
+                raise MissingBankVoice(spk["voice"])
+            text = txt.read_text().strip()
+            found[spk["id"]] = Voice(spk["id"], wav, text, hash_file(wav))
     return found
 
 
@@ -46,7 +59,10 @@ def jobs(
     translation: Mapping[str, Any],
     voices_by_speaker: Mapping[str, Voice],
     backend: Mapping[str, Any],
+    durations: Mapping[str, float] | None = None,
 ) -> list[Job]:
+    """`durations`: target lengths by id, for a backend that can follow them."""
+    durations = durations or {}
     result = []
     for seg in translation["segments"]:
         voice = voices_by_speaker.get(seg["speaker"])
@@ -55,6 +71,9 @@ def jobs(
             "voice": [voice.ref_hash, voice.ref_text] if voice else None,
             "backend": dict(backend),
         }
+        forced = durations.get(seg["id"])
+        if forced is not None:
+            key["duration"] = forced
         result.append(
             Job(
                 seg["id"],
@@ -62,6 +81,7 @@ def jobs(
                 seg["text"],
                 round(seg["end"] - seg["start"], 3),
                 hash_value(key),
+                forced,
             )
         )
     return result

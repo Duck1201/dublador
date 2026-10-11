@@ -112,6 +112,15 @@ def test_validation_errors(home: Path, cwd: Path, toml: str, message: str) -> No
         load_config(env={"HOME": str(home)}, cwd=cwd)
 
 
+def test_flag_sets_a_stage_section(home: Path, cwd: Path, tmp_path: Path) -> None:
+    write(cwd / "config.toml", "[diarize]\nmin_speaker_seconds = 3.0\n")
+    config = load_config({"diarize.num_speakers": 2}, env={"HOME": str(home)}, cwd=cwd)
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    data = tomllib.loads(write_snapshot(config, job_dir).read_text())
+    assert data["diarize"] == {"min_speaker_seconds": 3.0, "num_speakers": 2}
+
+
 def test_unknown_override_key(home: Path, cwd: Path) -> None:
     with pytest.raises(ConfigError, match="unknown config key"):
         load_config({"nope.key": 1}, env={"HOME": str(home)}, cwd=cwd)

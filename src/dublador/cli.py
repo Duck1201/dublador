@@ -104,6 +104,9 @@ def run(
     format: Annotated[OutputFormat | None, typer.Option(help="Output container.")] = None,
     output: Annotated[Path | None, typer.Option(help="Output file path.")] = None,
     audio_track: Annotated[int | None, typer.Option(help="Audio track index to dub.")] = None,
+    num_speakers: Annotated[
+        int | None, typer.Option(min=1, help="How many people speak (default: detect).")
+    ] = None,
 ) -> None:
     """Dub a video from start to finish."""
     if review:
@@ -119,6 +122,7 @@ def run(
             "languages.target": target_lang,
             "translate.model": translator_model,
             "output.format": format.value if format else None,
+            "diarize.num_speakers": num_speakers,
         }
     )
     with _errors():

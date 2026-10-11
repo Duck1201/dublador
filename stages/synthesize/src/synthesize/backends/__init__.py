@@ -35,6 +35,10 @@ class TTSBackend(Protocol):
         ...
 
 
+# Optional: `design_voice(description, text, seed) -> (audio, sample_rate)` lets a
+# backend build the fallback voice bank (synthesize/voicebank.py).
+
+
 BACKENDS = {
     "omnivoice": "synthesize.backends.omnivoice:OmniVoiceBackend",
 }

@@ -72,3 +72,9 @@ def _pipeline(fail: str | None = None) -> tuple[StageSpec, ...]:
 def fake_pipeline() -> Callable[..., tuple[StageSpec, ...]]:
     """extract → fake separate → fake mix → mux; `fail=<stage>` forces a failure."""
     return _pipeline
+
+
+@pytest.fixture
+def make_fake_spec() -> Callable[..., StageSpec]:
+    """fake_spec(name, module, inputs, outputs) for stages in tests/fake_stages."""
+    return fake_spec

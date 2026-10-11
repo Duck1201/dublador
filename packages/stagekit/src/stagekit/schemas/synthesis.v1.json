@@ -47,6 +47,11 @@
             "type": "number",
             "minimum": 0
           },
+          "target_duration": {
+            "description": "Length the TTS was asked for by the fit loop (s)",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
           "input_hash": {
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"
