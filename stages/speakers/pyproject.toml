@@ -10,6 +10,7 @@ dependencies = [
     "soundfile>=0.12",
     "pyloudnorm>=0.1.1",
     "scipy",
+    "librosa>=0.11",
     # Gender classifier (ECAPA, ecapa_gender.py) runs on the CPU: no ROCm build needed.
     "torch==2.11.0",
     "torchaudio==2.11.0",

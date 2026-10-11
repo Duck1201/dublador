@@ -41,27 +41,23 @@ def vote(
 
 
 def median_f0(
-    audio: np.ndarray, sr: int, *, fmin: float = 60.0, fmax: float = 400.0
+    audio: np.ndarray, sr: int, *, fmin: float = 50.0, fmax: float = 400.0
 ) -> float | None:
-    """Median pitch of the voiced frames (autocorrelation), or None if unvoiced."""
-    frame, hop = int(0.04 * sr), int(0.01 * sr)
-    lo, hi = int(sr / fmax), int(sr / fmin)
-    if len(audio) < frame or hi >= frame:
+    """Median pitch of the voiced frames (pYIN), or None if unvoiced.
+
+    A plain autocorrelation read real speech with residual music about 30 Hz too
+    high (harmonics), which matched speakers with too high bank voices; pYIN
+    agrees on clean and noisy speech."""
+    import librosa
+
+    if len(audio) < sr // 4:
         return None
-    peak = float(np.max(np.abs(audio))) or 1.0
-    pitches = []
-    window = np.hanning(frame)
-    for start in range(0, len(audio) - frame, hop):
-        x = audio[start : start + frame] * window
-        if np.sqrt(np.mean(x**2)) < 0.05 * peak:
-            continue  # too quiet to be voiced
-        ac = np.correlate(x, x, mode="full")[frame - 1 :]
-        if ac[0] <= 0:
-            continue
-        lag = lo + int(np.argmax(ac[lo:hi]))
-        if ac[lag] / ac[0] > 0.4:  # periodic enough
-            pitches.append(sr / lag)
-    return float(np.median(pitches)) if pitches else None
+    if sr != MODEL_RATE:
+        audio = resample(audio, sr)
+    f0, voiced, _ = librosa.pyin(audio, fmin=fmin, fmax=fmax, sr=MODEL_RATE)
+    if not np.any(voiced):
+        return None
+    return float(np.nanmedian(f0[voiced]))
 
 
 def resample(audio: np.ndarray, sr: int, rate: int = MODEL_RATE) -> np.ndarray:
