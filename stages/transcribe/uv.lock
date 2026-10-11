@@ -9,7 +9,13 @@ supported-markers = [
 ]
 
 [manifest]
-overrides = [{ name = "triton", marker = "sys_platform == 'never'" }]
+overrides = [
+    { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "torchaudio", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "torchcodec", specifier = "==0.11.1", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "triton", marker = "sys_platform == 'never'" },
+]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -179,13 +185,19 @@ wheels = [
 [[package]]
 name = "ctranslate2"
 version = "4.8.2"
-source = { registry = "https://pypi.org/simple" }
+source = { path = "wheels/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
 dependencies = [
     { name = "numpy" },
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/23/d72e70cac2b7c5c832a629c380235b53b20fac8c0921856bcf625b08ba44/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:554a0b2abf098a11c66ef7930c0a05b3de683a455e8ea3f2e6ab6966aaabc136", size = 39555908, upload-time = "2026-08-31T19:37:27.948Z" },
+    { filename = "ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9e1badd1fc05b61d49b34dfef6da30e7b9307ca86484ccdefe5e9efa74974596" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy" },
+    { name = "pyyaml", specifier = ">=5.3,<7" },
 ]
 
 [[package]]
@@ -211,13 +223,15 @@ name = "dublador-stage-transcribe"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ctranslate2" },
     { name = "dublador-stagekit" },
     { name = "numpy" },
-    { name = "pytorch-triton-rocm" },
     { name = "soundfile" },
     { name = "torch" },
     { name = "torchaudio" },
+    { name = "torchcodec" },
     { name = "torchvision" },
+    { name = "triton-rocm" },
     { name = "whisperx" },
 ]
 
@@ -228,13 +242,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ctranslate2", path = "wheels/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
     { name = "dublador-stagekit", editable = "../../packages/stagekit" },
     { name = "numpy" },
-    { name = "pytorch-triton-rocm", index = "https://download.pytorch.org/whl/rocm6.4" },
     { name = "soundfile", specifier = ">=0.12" },
-    { name = "torch", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/rocm6.4" },
-    { name = "torchaudio", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/rocm6.4" },
-    { name = "torchvision", specifier = "==0.23.0", index = "https://download.pytorch.org/whl/rocm6.4" },
+    { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "torchaudio", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "torchcodec", specifier = "==0.11.1", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/rocm7.2" },
+    { name = "triton-rocm", index = "https://download.pytorch.org/whl/rocm7.2" },
     { name = "whisperx", specifier = "==3.8.6" },
 ]
 
@@ -1096,17 +1112,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pytorch-triton-rocm"
-version = "3.4.0"
-source = { registry = "https://download.pytorch.org/whl/rocm6.4" }
-dependencies = [
-    { name = "setuptools" },
-]
-wheels = [
-    { url = "https://download-r2.pytorch.org/whl/pytorch_triton_rocm-3.4.0-cp312-cp312-linux_x86_64.whl", hash = "sha256:7afe951b9fc38f1a5b3a7b98bebbaa092bf51e6192b699b4fade9b1ad6fc9c2c", upload-time = "2025-08-05T21:10:03Z" },
-]
-
-[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1221,11 +1226,11 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "84.0.0"
+version = "81.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz", hash = "sha256:f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73", size = 1168449, upload-time = "2026-08-08T18:27:58.365Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl", hash = "sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670", size = 818216, upload-time = "2026-08-08T18:27:56.719Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
 ]
 
 [[package]]
@@ -1311,20 +1316,20 @@ wheels = [
 
 [[package]]
 name = "torch"
-version = "2.8.0+rocm6.4"
-source = { registry = "https://download.pytorch.org/whl/rocm6.4" }
+version = "2.11.0+rocm7.2"
+source = { registry = "https://download.pytorch.org/whl/rocm7.2" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
     { name = "jinja2" },
     { name = "networkx" },
-    { name = "pytorch-triton-rocm" },
     { name = "setuptools" },
     { name = "sympy" },
+    { name = "triton-rocm" },
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://download-r2.pytorch.org/whl/rocm6.4/torch-2.8.0%2Brocm6.4-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:b2ee7e4967d4ad38689a38cefff2a60baa1e884fe61d96c390c187e525a02b3a", upload-time = "2025-10-02T00:51:30Z" },
+    { url = "https://download-r2.pytorch.org/whl/rocm7.2/torch-2.11.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:8f02a36213288ab5921e277e13f5954cc62afe7cfa899b79d739d4ef2be6510b", upload-time = "2026-04-28T19:44:39Z" },
 ]
 
 [[package]]
@@ -1359,21 +1364,18 @@ wheels = [
 
 [[package]]
 name = "torchaudio"
-version = "2.8.0+rocm6.4"
-source = { registry = "https://download.pytorch.org/whl/rocm6.4" }
-dependencies = [
-    { name = "torch" },
-]
+version = "2.11.0+rocm7.2"
+source = { registry = "https://download.pytorch.org/whl/rocm7.2" }
 wheels = [
-    { url = "https://download-r2.pytorch.org/whl/rocm6.4/torchaudio-2.8.0%2Brocm6.4-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:c1ff4ec4f3db80fe7a7403e0171ce9712e61193ccf0128d4c1e160336c4a303f", upload-time = "2025-08-05T20:12:11Z" },
+    { url = "https://download-r2.pytorch.org/whl/rocm7.2/torchaudio-2.11.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:e0316d938346cfa4ff04b91405a91ecc50bd18781023eca5763b79f0f7b9bc8c", upload-time = "2026-03-23T15:50:39Z" },
 ]
 
 [[package]]
 name = "torchcodec"
-version = "0.7.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.11.1+cpu"
+source = { registry = "https://download.pytorch.org/whl/cpu" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/10/4a1a8407d0fad37cb43d1f749e7b422e5a0f6def17f3b90ab9ab9a105e32/torchcodec-0.7.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:3cd23c3296c9b071d56bb2c534a6a98275d65c1a6a7213cdb72a26ec9f9d2fd8", size = 1421871, upload-time = "2025-09-08T14:17:43.419Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:c6ee02d636e697c4793efc9c3f21c9439aa60c85089804f9ddd26a6dcb981396", upload-time = "2026-04-14T18:05:51Z" },
 ]
 
 [[package]]
@@ -1393,15 +1395,15 @@ wheels = [
 
 [[package]]
 name = "torchvision"
-version = "0.23.0+rocm6.4"
-source = { registry = "https://download.pytorch.org/whl/rocm6.4" }
+version = "0.26.0+rocm7.2"
+source = { registry = "https://download.pytorch.org/whl/rocm7.2" }
 dependencies = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://download-r2.pytorch.org/whl/rocm6.4/torchvision-0.23.0%2Brocm6.4-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:0e7cfef974f3a1219c5c250c75a813da332cf618b30a4ba7b101985c3bb449a3", upload-time = "2025-08-05T20:11:55Z" },
+    { url = "https://download-r2.pytorch.org/whl/rocm7.2/torchvision-0.26.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:2d766e7b69bfaf2fc29471ed95727fd19fa7aa88124fcf1f1808fd03bf86f226", upload-time = "2026-03-23T15:36:37Z" },
 ]
 
 [[package]]
@@ -1432,6 +1434,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/35/67252acc1b929dc88b6602e8c4a982e64f31e733b804c14bc24b47da35e6/transformers-4.57.6.tar.gz", hash = "sha256:55e44126ece9dc0a291521b7e5492b572e6ef2766338a610b9ab5afbb70689d3", size = 10134912, upload-time = "2026-01-16T10:38:39.284Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/b8/e484ef633af3887baeeb4b6ad12743363af7cce68ae51e938e00aaa0529d/transformers-4.57.6-py3-none-any.whl", hash = "sha256:4c9e9de11333ddfe5114bc872c9f370509198acf0b87a832a0ab9458e2bd0550", size = 11993498, upload-time = "2026-01-16T10:38:31.289Z" },
+]
+
+[[package]]
+name = "triton-rocm"
+version = "3.6.0"
+source = { registry = "https://download.pytorch.org/whl/rocm7.2" }
+wheels = [
+    { url = "https://download-r2.pytorch.org/whl/triton_rocm-3.6.0-cp312-cp312-linux_x86_64.whl", upload-time = "2026-01-20T18:39:32Z" },
 ]
 
 [[package]]

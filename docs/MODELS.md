@@ -143,7 +143,7 @@ Objetivo: extrair a **faixa de diálogo** (para ASR/diarização/referência de 
 | NVIDIA Parakeet-TDT-0.6B-v3 / Canary-1B-v2 | NeMo | ⚠ NeMo em ROCm não é suportado oficialmente [NV] | ~2–4 GB | Muito bom em EN | ✅ nativos | CC-BY-4.0 | 3.10+ |
 
 **Recomendação:**
-- **Default: WhisperX** (é o padrão de fato para dublagem: VAD + segmentação + alinhamento wav2vec2 por palavra + integração com pyannote). Venv com `torch==2.8.0+rocm6.4`. Transcrição via **CTranslate2 ROCm** se a [validação](#tarefas-de-validação) passar; senão **CT2 em CPU `int8`** (Ryzen 5600: 1 h de áudio deve levar da ordem de 1–2 h [NV]) — aceitável para job desacompanhado. O alinhamento wav2vec2 roda na GPU via torch de qualquer forma.
+- **Default: WhisperX** (é o padrão de fato para dublagem: VAD + segmentação + alinhamento wav2vec2 por palavra + integração com pyannote). Venv com `torch==2.11.0+rocm7.2`. A transcrição usa o **CTranslate2 ROCm na GPU** (`int8_float16`, lote 4; [validação](#tarefas-de-validação), #19), com volta automática para CT2 em CPU `int8`. O alinhamento wav2vec2 roda na GPU via torch.
 - **Desafiante de qualidade:** Qwen3-ASR-1.7B + ForcedAligner (Apache, melhor WER EN publicado, PyTorch puro → sem o problema do CTranslate2). Exige fatiar o áudio em janelas ≤ 5 min para o aligner (dá para usar os segmentos do VAD/diarização).
 - **Fallback simples:** `openai/whisper-large-v3` no `transformers` com `return_timestamps="word"`.
 - Usar `condition_on_previous_text=False` / VAD para evitar alucinações em áudio longo [boas práticas Whisper].
@@ -376,6 +376,23 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
 **ASR**
 - [x] CTranslate2 ROCm — 2026-10-10: a opção (b) funciona. O wheel ROCm do release 4.8.2 precisa de `libamdhip64.so.7`, `libhipblas.so.3` e `libhiprand.so.1`; o `torch 2.11+rocm7.2` traz os mesmos arquivos sem o sufixo de versão (SONAMEs iguais), então basta um diretório de symlinks + `LD_LIBRARY_PATH`. É obrigatório `CT2_CUDA_ALLOCATOR=cub_caching` (com o alocador padrão: OOM, `hipErrorIllegalAddress` ou travamento). `large-v3` em lote (`BatchedInferencePipeline`, lote 8/16): **GPU fp16 RTF 0,07** vs **CPU int8 RTF 0,48**, mesmo texto. **Decisão (usuário, 2026-10-10): o M1 transcreve na CPU int8** só com pacotes do PyPI e o torch 2.8 que o WhisperX pede; a GPU é a otimização do issue #19. `faster-whisper` 1.2.1 quebra com `av` ≥ 16 fora do WhisperX (que lê o áudio com ffmpeg).
 - [~] WhisperX no estágio `transcribe` (2026-10-10, sem diarização): `large-v3` CPU int8 em lote + alinhamento wav2vec2 na GPU levam ~90 s para 70 s de áudio, contando a carga dos modelos. O venv usa `torch==2.8.0+rocm6.4`, `torchvision==0.23.0` do índice rocm6.4 e anula o `triton` de CUDA que o WhisperX puxa (`override-dependencies`). A transcrição em lote devolve janelas de VAD de até 30 s, às vezes sem pontuação; o estágio as divide por frase, pausa (≥ 0,6 s) e duração máxima (12 s) usando os tempos por palavra.
+- [x] **Whisper na GPU no estágio `transcribe` (#19, 2026-10-10).**
+  - **Ambiente:** o venv sobe para `torch 2.11.0+rocm7.2`, `torchvision 0.26.0` e `torchcodec 0.11.1+cpu` (índice CPU do PyTorch; a wheel do PyPI é ligada ao CUDA 13), com os pins do WhisperX anulados por `override-dependencies`. O wheel ROCm do CTranslate2 4.8.2 entra no `uv.lock` como fonte de caminho relativo (`stages/transcribe/wheels/`, que o git ignora). O `dublador setup` baixa o zip do release (sha256 conferido) para `models_dir/_downloads/` e cria o link antes do `uv sync`. Assim `uv sync`/`uv run` mantêm a versão ROCm.
+  - **Shim:** o estágio cria o shim de libs dentro do próprio venv e se re-executa com `LD_LIBRARY_PATH` e `CT2_CUDA_ALLOCATOR=cub_caching`.
+  - **VAD:** o VAD do pyannote que o WhisperX usa **tem de ficar na CPU**. Na GPU, o MIOpen não compila o kernel de dropout do LSTM (`miopenStatusUnknownError`), o mesmo problema do Kokoro.
+  - **Números no `mlgoogle`** (626 s de fala; pico de VRAM do sistema, com o desktop):
+
+    | Configuração | Tempo | Pico de VRAM | Texto em relação à CPU |
+    |---|---|---|---|
+    | CPU int8, lote 8 | 264 s | — | referência |
+    | GPU fp16, lote 8 | 55 s | **7,8 GB** | — |
+    | GPU fp16, lote 4 | 56 s | 6,1 GB | 10 trechos diferentes, mais erros que a CPU ("brother" no lugar de "browser") |
+    | GPU fp16, lote 2 | 69 s | 6,1 GB | — |
+    | GPU bf16, lote 4 | 63 s | 6,1 GB | 10 trechos diferentes, inclusive palavras inventadas |
+    | **GPU `int8_float16`, lote 4** | **59 s** | **5,6 GB** | **7 trechos diferentes, metade melhor que a CPU** ("SimpleML for", "Colab") |
+
+    Limitar o cache do alocador (`CT2_CUDA_CACHING_ALLOCATOR_CONFIG`) não baixa o pico.
+  - **Decisão (usuário):** a GPU com `int8_float16` e lote 4 é o padrão, com volta automática para CPU int8 se a GPU falhar.
 - [ ] WhisperX completo (transcrição + align + diarização) num vídeo de 10 min: WER manual em 2 min, precisão de bordas de palavra (±100 ms) por amostragem.
 - [ ] Qwen3-ASR-1.7B + ForcedAligner no mesmo trecho (sdpa, bf16): WER, VRAM, tempo; comparar com WhisperX.
 

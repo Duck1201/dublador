@@ -7,13 +7,19 @@ requires-python = "==3.12.*"
 dependencies = [
     "dublador-stagekit",
     "whisperx==3.8.6",
-    # WhisperX pins torch~=2.8; ROCm 6.4 builds of that series (docs/MODELS.md).
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-    "torchvision==0.23.0",
+    # ROCm build from the GitHub release; `dublador setup` links it into wheels/
+    # (src/dublador/stages.py, _CT2_ROCM).
+    "ctranslate2==4.8.2",
+    # torch 2.11 on ROCm 7.2 (the baseline): the ROCm build of CTranslate2 loads
+    # the HIP libraries this torch ships (#19, docs/MODELS.md).
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "torchvision==0.26.0",
+    # The PyPI torchcodec wheels link against CUDA; the CPU build decodes audio here.
+    "torchcodec==0.11.1",
     # Needed by the ROCm torch wheel and only on the PyTorch index; uv applies
     # `sources` to direct dependencies only.
-    "pytorch-triton-rocm",
+    "triton-rocm",
     "soundfile>=0.12",
     "numpy",
 ]
@@ -31,18 +37,32 @@ packages = ["src/transcribe"]
 [tool.uv]
 # Stages only run on Linux x86_64 with ROCm; do not resolve for other platforms.
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
-# WhisperX depends on the CUDA `triton`, which would clash with pytorch-triton-rocm
-# (both install the `triton` module). Drop it.
-override-dependencies = ["triton; sys_platform == 'never'"]
+override-dependencies = [
+    # WhisperX depends on the CUDA `triton`, which would clash with triton-rocm
+    # (both install the `triton` module). Drop it.
+    "triton; sys_platform == 'never'",
+    # WhisperX 3.8.6 pins torch~=2.8 and its companions; it runs on 2.11 (#19).
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "torchvision==0.26.0",
+    "torchcodec==0.11.1",
+]
 
 [tool.uv.sources]
+ctranslate2 = { path = "wheels/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
 dublador-stagekit = { path = "../../packages/stagekit", editable = true }
 torch = { index = "pytorch-rocm" }
 torchaudio = { index = "pytorch-rocm" }
 torchvision = { index = "pytorch-rocm" }
-pytorch-triton-rocm = { index = "pytorch-rocm" }
+torchcodec = { index = "pytorch-cpu" }
+triton-rocm = { index = "pytorch-rocm" }
 
 [[tool.uv.index]]
 name = "pytorch-rocm"
-url = "https://download.pytorch.org/whl/rocm6.4"
+url = "https://download.pytorch.org/whl/rocm7.2"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
