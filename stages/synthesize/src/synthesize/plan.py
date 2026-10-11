@@ -29,8 +29,9 @@ class Job:
     id: str
     speaker: str
     text: str
-    target_duration: float
+    target_duration: float  # the original line's length
     input_hash: str
+    forced_duration: float | None = None  # asked by the fit loop (fit.json)
 
 
 class MissingBankVoice(Exception):
@@ -58,7 +59,10 @@ def jobs(
     translation: Mapping[str, Any],
     voices_by_speaker: Mapping[str, Voice],
     backend: Mapping[str, Any],
+    durations: Mapping[str, float] | None = None,
 ) -> list[Job]:
+    """`durations`: target lengths by id, for a backend that can follow them."""
+    durations = durations or {}
     result = []
     for seg in translation["segments"]:
         voice = voices_by_speaker.get(seg["speaker"])
@@ -67,6 +71,9 @@ def jobs(
             "voice": [voice.ref_hash, voice.ref_text] if voice else None,
             "backend": dict(backend),
         }
+        forced = durations.get(seg["id"])
+        if forced is not None:
+            key["duration"] = forced
         result.append(
             Job(
                 seg["id"],
@@ -74,6 +81,7 @@ def jobs(
                 seg["text"],
                 round(seg["end"] - seg["start"], 3),
                 hash_value(key),
+                forced,
             )
         )
     return result

@@ -102,7 +102,7 @@ _CT2_ROCM = ExtraWheel(
     member="temp-linux/ctranslate2-4.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
 )
 
-# M2 pipeline. fit joins in M3.
+# M3 pipeline: the fit loop (runner.py) repeats translate -> synthesize -> fit for overflows.
 PIPELINE: tuple[StageSpec, ...] = (
     StageSpec(
         "extract",
@@ -152,12 +152,14 @@ PIPELINE: tuple[StageSpec, ...] = (
         module="synthesize",
     ),
     StageSpec(
+        "fit",
+        inputs=("06_translate/translation.json", "07_synthesize/synthesis.json"),
+        outputs=("08_fit/fit.json",),
+        module="fit",
+    ),
+    StageSpec(
         "mix",
-        inputs=(
-            "07_synthesize/synthesis.json",
-            "06_translate/translation.json",
-            f"{_SEP}/accompaniment.wav",
-        ),
+        inputs=("08_fit/fit.json", f"{_SEP}/accompaniment.wav"),
         outputs=(ffmpeg.DUB_WAV,),
         module="mix",
     ),

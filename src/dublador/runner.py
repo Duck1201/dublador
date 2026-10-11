@@ -109,10 +109,71 @@ def run_pipeline(
             raise PipelineError(message) from e
         manifest.mark_done(spec.name, warnings=warnings)
         console.print(f"[green]✓[/green] {spec.name}")
+        if spec.name == "fit":
+            fit_loop(job, manifest, config, specs, console)
+
+
+FIT_JSON = "08_fit/fit.json"
+LOOP_STAGES = ("translate", "synthesize", "fit")
+
+
+def fit_loop(
+    job: Job,
+    manifest: Manifest,
+    config: Config,
+    specs: Sequence[StageSpec],
+    console: Console,
+) -> None:
+    """Re-run translate (shorten) -> synthesize -> fit on the segments that still
+    overflow their window, up to fit.max_fit_iterations times (ADR-0004, ADR-0018).
+    The fit stage says what each segment needs: `shorten_to` (a shorter
+    translation) or `target_duration` (synthesis at a given length)."""
+    by_name = {s.name: s for s in specs}
+    if any(name not in by_name for name in LOOP_STAGES):
+        return
+    warnings = {name: list(manifest.stage(name).get("warnings", [])) for name in LOOP_STAGES}
+    limit = config.fit.max_fit_iterations
+    for iteration in range(1, limit + 1):
+        segments = json.loads((job.dir / FIT_JSON).read_text())["segments"]
+        over = [
+            s
+            for s in segments
+            if s["strategy"] == "overflow" and (s.get("shorten_to") or s.get("target_duration"))
+        ]
+        if not over:
+            break
+        ids = [s["id"] for s in over]
+        shorten = [s["id"] for s in over if s.get("shorten_to")]
+        console.print(
+            f"[bold]fit loop {iteration}/{limit}:[/bold] {len(ids)} segment(s) over their window"
+        )
+        steps = [("translate", shorten)] if shorten else []
+        steps += [("synthesize", ids), ("fit", ids)]
+        for name, only in steps:
+            run_warnings: list[str] = []
+            try:
+                _run_subprocess(by_name[name], job, config, console, run_warnings, only=only)
+            except Exception as e:
+                message = str(e) if isinstance(e, PipelineError) else f"{name}: {e}"
+                manifest.mark_failed(name, f"fit loop: {message}", warnings=run_warnings)
+                raise PipelineError(message) from e
+            # The last fit run lists what still overflows; other stages add up.
+            warnings[name] = run_warnings if name == "fit" else warnings[name] + run_warnings
+    for name in LOOP_STAGES:
+        spec = by_name[name]
+        manifest.refresh(
+            name, inputs_hash=inputs_hash(spec, job, manifest, config), warnings=warnings[name]
+        )
 
 
 def _run_subprocess(
-    spec: StageSpec, job: Job, config: Config, console: Console, warnings: list[str]
+    spec: StageSpec,
+    job: Job,
+    config: Config,
+    console: Console,
+    warnings: list[str],
+    *,
+    only: Sequence[str] | None = None,
 ) -> None:
     assert spec.module is not None
     python = spec.python_path(config)
@@ -129,6 +190,8 @@ def _run_subprocess(
         "--config",
         str(job.snapshot_path),
     ]
+    if only:
+        cmd += ["--only", ",".join(only)]
     log_path = job.log_path(spec.name)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 

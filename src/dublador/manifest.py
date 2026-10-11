@@ -103,6 +103,13 @@ class Manifest:
         )
         self.save()
 
+    def refresh(self, name: str, *, inputs_hash: str, warnings: Sequence[str]) -> None:
+        """Record new inputs for a done stage that a later step (the fit loop) re-ran
+        on some segments, so `resume` does not redo it."""
+        entry = self.stage(name)
+        entry.update(inputs_hash=inputs_hash, warnings=list(warnings), finished_at=_now())
+        self.save()
+
     def mark_failed(self, name: str, error: str, *, warnings: Sequence[str] = ()) -> None:
         entry = self.stage(name)
         entry.update(status="failed", finished_at=_now(), error=error, warnings=list(warnings))

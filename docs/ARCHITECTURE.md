@@ -73,13 +73,13 @@ Para cada falante:
 - decide a estratégia de voz: `clone` se houver referência de pelo menos 2 s; senão `bank`, com `voice` = `<gênero>_NN` do banco de vozes ([`voices/README.md`](../voices/README.md)), estável por falante e sem repetir voz no mesmo vídeo. ([ADR-0002](adr/0002-vozes-hibridas.md))
 
 ### 06 — translate
-Tradução EN→PT-BR por LLM local via Ollama. O LLM recebe janelas do diálogo (com contexto anterior/posterior e falantes) e, para cada segmento, a **duração disponível** e um orçamento aproximado de caracteres. Responde em JSON validado contra schema; respostas inválidas são re-solicitadas. O mesmo estágio tem um modo `shorten`, chamado pelo loop de ajuste (abaixo).
+Tradução EN→PT-BR por LLM local via Ollama. O LLM recebe janelas do diálogo (com contexto anterior/posterior e falantes) e, para cada segmento, a **duração disponível** e um orçamento em sílabas. Responde em JSON validado contra schema; respostas inválidas são re-solicitadas. O mesmo estágio tem um modo `shorten`, chamado pelo loop de ajuste (abaixo): com `--only`, os ids que o `fit.json` marca com `shorten_to` são reescritos mais curtos a partir do texto atual.
 
 Como pedir uma duração só no prompt controla mal o tamanho do texto ([RESEARCH §3.5](RESEARCH.md)), o controle de comprimento é feito **por código**:
 
-- o orçamento de cada segmento é expresso em **sílabas** (estimadas a partir da duração e de uma taxa de fala PT-BR), não só em segundos;
-- o LLM gera **N candidatos** por segmento e o estágio escolhe o melhor que cabe no orçamento, contando as sílabas;
-- um **resumo e um glossário do vídeo** (nomes, termos, tratamento você/senhor) são gerados numa primeira passada e entram no contexto de todas as janelas;
+- o orçamento de cada segmento é expresso em **sílabas**: a janela, do início da fala ao início da próxima menos 150 ms, vezes `syllables_per_second` (5,7, calibrado com o OmniVoice). As sílabas são contadas por uma heurística pt-BR (`translate/syllables.py`) e gravadas no `translation.json` (`syllables`, `budget`);
+- o LLM gera **3 candidatos** por segmento, do mais natural ao mais curto, e o estágio escolhe o mais longo que cabe no orçamento ou, se nenhum couber, o mais curto ([ADR-0018](adr/0018-ordem-do-time-fit-e-loop.md));
+- *(planejado, M4+)* um **resumo e um glossário do vídeo** (nomes, termos, tratamento você/senhor), gerados numa primeira passada e incluídos no contexto de todas as janelas;
 - o prompt inclui o **gênero de quem fala e de com quem fala**, para acertar a concordância em PT-BR. ([ADR-0005](adr/0005-traducao-por-llm-local.md))
 
 **Ponto de revisão:** com `--review`, a pipeline para aqui, grava `review.yaml` (falantes, gênero, voz escolhida, texto EN e PT-BR por segmento) e o abre no `$EDITOR`. As edições são aplicadas de volta em `translation.json`/`speakers.json` e a pipeline segue com `dublador resume`. ([ADR-0008](adr/0008-revisao-opcional.md))
@@ -88,20 +88,25 @@ Como pedir uma duração só no prompt controla mal o tamanho do texto ([RESEARC
 Gera um WAV por segmento com o TTS: clonagem zero-shot a partir de `refs/<speaker>.wav`, ou voz do banco no fallback. O backend de TTS é um **plugin trocável** — o estágio expõe uma interface fixa e o modelo por trás muda por configuração.
 
 ### 08 — fit (time-fit)
-Faz cada fala dublada caber na janela da fala original ([ADR-0004](adr/0004-sincronia-time-fit.md)):
+Faz cada fala dublada caber na janela da fala original ([ADR-0004](adr/0004-sincronia-time-fit.md), ordem na [ADR-0018](adr/0018-ordem-do-time-fit-e-loop.md)). A fala começa no início da primeira palavra alinhada pelo wav2vec2; a janela vai até o início da próxima fala, de qualquer falante, menos `fit.gap_seconds` (0,15 s).
 
-A janela de cada fala é ancorada no **início real da fala original** detectado por VAD sobre `vocals.wav` (o início do segmento do ASR costuma ser impreciso).
+1. **fits:** o áudio cabe na duração da fala original;
+2. **silence:** cabe usando a pausa até a próxima fala;
+3. **stretch:** time-stretch com pitch preservado (filtro `rubberband` do ffmpeg) até `fit.max_speedup` (1,25×);
+4. **overflow:** acelera até `fit.max_forced_speedup` (1,6×), para o mix sempre ter áudio, emite um aviso e grava a dica para o loop: `shorten_to` (meta de sílabas) no 1º overflow seguido, `target_duration` no 2º.
 
-1. se cabe, mantém;
-2. se estoura e o backend de TTS aceita **duração-alvo**, ressintetiza já na duração da janela (soa melhor do que esticar o áudio); depende do modelo escolhido em [`MODELS.md`](MODELS.md);
-3. se estoura até o limite de aceleração (`fit.max_speedup`, padrão `1.25x`, configurável), aplica *time-stretch* com preservação de pitch;
-4. se ainda estoura, usa o silêncio após a fala (até o início da próxima fala do mesmo falante ou de outro);
-5. se ainda estoura, marca o segmento como **overflow**.
+Saídas: `08_fit/segments/<id>.wav` e `08_fit/fit.json` (`fit/v1`), com estratégia, fator de aceleração, tentativa e dicas de cada segmento, além de cache por segmento. O `mix` lê o `fit.json`.
 
 Como o vídeo é copiado sem reencodar ([ADR-0009](adr/0009-formato-de-saida.md)), não há a opção de desacelerar o vídeo; por isso o encurtamento da tradução é a principal alavanca.
 
 ### Loop de ajuste (orquestrador)
-Segmentos marcados como overflow voltam ao `translate` em modo `shorten` (com a duração-alvo e o texto atual), depois a `synthesize` e `fit`, **só para esses IDs**, até `max_fit_iterations` (padrão 2). O que ainda estourar recebe aceleração acima do limite com aviso no log/relatório — a pipeline nunca para por isso (critério da v1: terminar sem intervenção).
+Logo depois do `fit`, o runner (`runner.fit_loop`) lê os ids em overflow e repete, **só para esses ids**, até `fit.max_fit_iterations` (padrão 2):
+
+- `translate --only <ids com shorten_to>`, que reescreve mais curto;
+- `synthesize --only <ids>`, que usa o `target_duration` quando o `fit` pede;
+- `fit --only <ids>`.
+
+O que ainda estourar fica com a aceleração forçada e um aviso no relatório; a pipeline nunca para por isso (critério da v1: terminar sem intervenção). No fim do loop, o manifest regrava os hashes de entrada dos três estágios, para o `resume` não refazer nada.
 
 ### 09 — mix
 Posiciona cada segmento no seu timestamp, soma com `accompaniment.wav` e grava `dub.wav`. Cuidados ([RESEARCH §3.8](RESEARCH.md)):
@@ -206,6 +211,8 @@ ollama_url = "http://localhost:11434"
 [fit]
 max_speedup = 1.25
 max_fit_iterations = 2
+gap_seconds = 0.15
+max_forced_speedup = 1.6
 
 [output]
 format = "mkv"

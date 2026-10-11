@@ -20,6 +20,7 @@ ollama_url = "http://localhost:11434"
 # Stage settings (passed through to the translate stage):
 # batch_size = 12          # segments per request
 # context_segments = 3     # neighbouring lines sent as context
+# syllables_per_second = 5.7  # TTS speech rate for the syllable budget (calibrated with OmniVoice)
 # retries = 3              # re-asks on invalid JSON before splitting the batch
 # temperature = 0.2
 # seed = 42
@@ -67,8 +68,10 @@ ollama_url = "http://localhost:11434"
 # num_step = 32             # omnivoice option: decoding steps (fewer = faster, rougher)
 
 [fit]
-max_speedup = 1.25
-max_fit_iterations = 2
+max_speedup = 1.25         # time-stretch limit for a normal fit (pitch kept)
+max_fit_iterations = 2     # shorten-the-translation, then target-duration passes
+# gap_seconds = 0.15       # silence kept before the next line
+# max_forced_speedup = 1.6 # cap for what still overflows after the loop
 
 [output]
 format = "mkv"                     # mkv | mp4

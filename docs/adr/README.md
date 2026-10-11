@@ -7,7 +7,7 @@ Decisões de arquitetura do dublador, no formato curto: **contexto → decisão 
 | [0001](0001-escopo-e-idiomas.md) | Escopo: EN→PT-BR, idiomas parametrizados | Aceito |
 | [0002](0002-vozes-hibridas.md) | Vozes híbridas: clonagem + fallback por gênero | Aceito (ajustado por 0017) |
 | [0003](0003-separacao-voz-fundo.md) | Separar voz do fundo em vez de descartar o áudio original | Aceito |
-| [0004](0004-sincronia-time-fit.md) | Sincronia por segmento (time-fit), sem lip-sync | Aceito |
+| [0004](0004-sincronia-time-fit.md) | Sincronia por segmento (time-fit), sem lip-sync | Aceito (detalhado por 0018) |
 | [0005](0005-traducao-por-llm-local.md) | Tradução por LLM local configurável | Aceito (ajustado por 0015) |
 | [0006](0006-uso-pessoal-e-licencas.md) | Uso pessoal; modelos NC aceitos; código Apache-2.0 | Aceito |
 | [0007](0007-venv-por-estagio-e-contrato-de-arquivos.md) | Um venv por estágio, contrato de arquivos, execução sequencial | Aceito |
@@ -21,3 +21,4 @@ Decisões de arquitetura do dublador, no formato curto: **contexto → decisão 
 | [0015](0015-tradutor-qualidade-instruct.md) | Opção de qualidade do tradutor: Qwen3 30B-A3B Instruct | Aceito |
 | [0016](0016-tts-padrao-chatterbox-pt-br.md) | TTS padrão: Chatterbox Multilingual V3 com finetune pt-BR | Substituído (0017) |
 | [0017](0017-tts-omnivoice-e-referencia-curta.md) | TTS padrão: OmniVoice, com referência de clonagem curta (3–4,5 s) | Aceito |
+| [0018](0018-ordem-do-time-fit-e-loop.md) | Ordem do ajuste de tempo e loop de encurtamento | Aceito |

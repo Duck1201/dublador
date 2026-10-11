@@ -27,7 +27,9 @@ class FakeOllama(BaseHTTPRequestHandler):
         REQUESTS.append((self.path, body))
         if self.path == "/api/chat":
             ids = [line["id"] for line in json.loads(body["messages"][1]["content"])["translate"]]
-            content = json.dumps({"translations": [{"id": i, "text": f"olá {i}"} for i in ids]})
+            content = json.dumps(
+                {"translations": [{"id": i, "candidates": [f"olá {i}"]} for i in ids]}
+            )
             reply = {"message": {"role": "assistant", "content": content}}
         else:
             reply = {"done": True}
@@ -103,6 +105,28 @@ def test_stage_writes_translation_and_unloads_model(tmp_path: Path, ollama_url: 
     )
     chat = [b for p, b in REQUESTS if p == "/api/chat"]
     assert len(chat) == 1
+
+
+def test_only_with_fit_shorten_rewrites_the_current_text(tmp_path: Path, ollama_url: str) -> None:
+    job, config = make_job(tmp_path, ollama_url)
+    main("translate", run=run, argv=["--job-dir", str(job), "--config", str(config)])
+    first = read_json(job / "06_translate" / "translation.json", "translation/v1")["segments"]
+    fit = {"schema": "fit/v1", "sample_rate": 24000, "segments": [{
+        "id": "seg_0002", "path": "08_fit/segments/seg_0002.wav", "start": 4.0, "end": 6.0,
+        "window": 1.85, "natural": 3.0, "ratio": 1.6, "strategy": "overflow", "attempt": 1,
+        "shorten_to": 7, "target_duration": None, "input_hash": "sha256:" + "0" * 64,
+    }]}  # fmt: skip
+    write_json(job / "08_fit" / "fit.json", fit)
+    REQUESTS.clear()
+    argv = ["--job-dir", str(job), "--config", str(config), "--only", "seg_0002"]
+    main("translate", run=run, argv=argv)
+    chat = [b for p, b in REQUESTS if p == "/api/chat"]
+    line = json.loads(chat[0]["messages"][1]["content"])["translate"][0]
+    assert line["id"] == "seg_0002" and line["max_syllables"] == 7
+    assert line["shorten"] == "Olá seg_0002"  # the current translation, not the source
+    after = read_json(job / "06_translate" / "translation.json", "translation/v1")["segments"]
+    assert after[1]["budget"] == 7
+    assert after[1]["input_hash"] == first[1]["input_hash"]  # stays cached afterwards
 
 
 def test_unreachable_ollama_fails_cleanly(

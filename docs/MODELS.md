@@ -430,6 +430,7 @@ Executar na máquina real antes de fixar escolhas. Marcar cada item com resultad
   - Kokoro (`pf_dora`, `pm_alex`, `pm_santa`), direto e como referência do Chatterbox: ruim. O LSTM do Kokoro falha no MIOpen da gfx1102 (`miopenStatusUnknownError`), então ele só roda na CPU.
 - [ ] Instalar e gerar as mesmas 30 frases PT-BR (com nasais, "tch/dj", números, siglas, nomes próprios em inglês) com a **shortlist do §6.2** (Qwen3-TTS, FireRedTTS3, MOSS-TTS-Local, OmniVoice, Chatterbox pt-br, dots.tts MF) — usando **a mesma referência em inglês** e **uma referência PT-BR**.
 - [ ] Avaliar: sotaque BR (nota 1–5, cego), similaridade de voz (ECAPA cosine ref×saída), inteligibilidade (WER com Whisper em PT), artefatos/alucinações (palavras puladas/repetidas), VRAM, RTF.
+- [x] **Taxa de fala do OmniVoice para o orçamento em sílabas (2026-10-10):** **5,7 sílabas/s** na mediana (p25 5,4, p75 5,9; 129 falas do `mlgoogle`), contadas com a heurística de `translate/syllables.py`. É o padrão de `translate.syllables_per_second` (ADR-0018).
 - [ ] OmniVoice (`duration=`) e MOSS-TTS (`tokens=`): precisão da duração-alvo (erro médio em s) e naturalidade quando a duração alvo é apertada (−15 %).
 - [ ] Chatterbox: funciona com override `torch==2.11.0+rocm7.2`? Testar `cfg_weight=0` para cross-lingual.
 - [ ] Medir taxa de fala (caracteres/s) de cada TTS em PT-BR para calibrar `max_chars` do tradutor.

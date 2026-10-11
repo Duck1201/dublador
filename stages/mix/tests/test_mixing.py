@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from mix.mixing import limit_peak, place, resample
+from mix.mixing import fade, limit_peak, place, resample
 
 
 def test_place_puts_samples_at_start_times() -> None:
@@ -31,3 +31,10 @@ def test_limit_peak() -> None:
     assert limit_peak(quiet)[1] == 1.0
     loud, gain = limit_peak(quiet * 4)
     assert gain < 1.0 and np.max(np.abs(loud)) == pytest.approx(10 ** (-1 / 20))
+
+
+def test_fade_ramps_both_ends() -> None:
+    clip = np.ones(1000, dtype=np.float32)
+    out = fade(clip, rate=1000, seconds=0.01)
+    assert out[0] == 0.0 and out[-1] == 0.0 and out[500] == 1.0
+    assert clip[0] == 1.0  # the input is not modified

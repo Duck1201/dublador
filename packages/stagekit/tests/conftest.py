@@ -54,6 +54,26 @@ EXAMPLES: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "fit/v1": {
+        "schema": "fit/v1",
+        "sample_rate": 24000,
+        "segments": [
+            {
+                "id": "seg_0001",
+                "path": "08_fit/segments/seg_0001.wav",
+                "start": 0.5,
+                "end": 2.1,
+                "window": 1.6,
+                "natural": 1.9,
+                "ratio": 1.19,
+                "strategy": "stretch",
+                "attempt": 0,
+                "shorten_to": None,
+                "target_duration": None,
+                "input_hash": "sha256:" + "0" * 64,
+            }
+        ],
+    },
     "diarization/v1": {
         "schema": "diarization/v1",
         "model": "pyannote/speaker-diarization-community-1",

@@ -186,3 +186,52 @@ def test_missing_bank_voice_says_how_to_fix(
         run_stage(job, config)
     err = capsys.readouterr().err
     assert "bank voice female_02 is missing" in err and "dublador setup --only synthesize" in err
+
+
+DURATIONS: list[tuple[str, float | None]] = []
+
+
+class TimedBackend(FakeBackend):
+    name = "timed"
+    supports_target_duration = True
+
+    def synthesize(
+        self,
+        text: str,
+        voice: Any,
+        target_duration: float | None = None,
+        max_seconds: float | None = None,
+    ) -> np.ndarray:
+        DURATIONS.append((text, target_duration))
+        self.sample_rate = 24000
+        seconds = target_duration or 0.1 * len(text)
+        return np.full(int(seconds * 24000), 0.1, dtype=np.float32)
+
+
+def test_fit_loop_target_duration_sticks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(backends.BACKENDS, "timed", f"{__name__}:TimedBackend")
+    DURATIONS.clear()
+    job, config = make_job(tmp_path, ["Olá", "Uma frase comprida demais"])
+    config.write_text(config.read_text().replace('"fake"', '"timed"'))
+    run_stage(job, config)
+    overflow = {
+        "id": "seg_0002", "path": "08_fit/segments/seg_0002.wav", "start": 4.0, "end": 6.0,
+        "window": 2.5, "natural": 2.5, "ratio": 1.6, "strategy": "overflow", "attempt": 2,
+        "shorten_to": None, "target_duration": 2.5, "input_hash": "sha256:" + "0" * 64,
+    }  # fmt: skip
+    fit = {"schema": "fit/v1", "sample_rate": 24000, "segments": [overflow]}
+    write_json(job / "08_fit" / "fit.json", fit)
+    DURATIONS.clear()
+    doc = run_stage(job, config, "--only", "seg_0002")
+    assert DURATIONS == [("Uma frase comprida demais", 2.5)]
+    assert doc["segments"][1]["target_duration"] == 2.5 and doc["segments"][1]["duration"] == 2.5
+
+    DURATIONS.clear()
+    run_stage(job, config)  # a later full run keeps the fitted length (cached)
+    assert DURATIONS == []
+    assert (
+        read_json(job / "07_synthesize" / "synthesis.json", "synthesis/v1")["segments"][1][
+            "target_duration"
+        ]
+        == 2.5
+    )
