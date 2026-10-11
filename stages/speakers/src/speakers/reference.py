@@ -8,6 +8,10 @@ import numpy as np
 
 DEFAULT_SPEAKER = "SPK_00"
 TAIL = 0.08  # seconds kept after the last word of a reference
+# A reference that starts or ends mid-phrase leaks its edge sounds into the cloned
+# speech (an English "...they" became a spoken "Ei" in pt-BR): prefer clips that
+# start after and end before a sentence end or a pause this long.
+EDGE_PAUSE = 0.25
 
 
 @dataclass(frozen=True)
@@ -17,6 +21,7 @@ class Candidate:
     end: float
     text: str
     word_score: float
+    clean_edges: bool = True
 
     @property
     def duration(self) -> float:
@@ -75,6 +80,8 @@ def candidates(
                 nxt = words[b + 1]["start"] if b + 1 < len(words) else last["end"] + TAIL
                 chosen = words[a : b + 1]
                 scores = [w["score"] for w in chosen if "score" in w]
+                clean_start = a == 0 or _boundary(words[a - 1], first)
+                clean_end = b + 1 == len(words) or _boundary(last, words[b + 1])
                 found.append(
                     Candidate(
                         speaker=speaker,
@@ -82,10 +89,18 @@ def candidates(
                         end=min(last["end"] + TAIL, max(nxt, last["end"])),
                         text=" ".join(w["word"].strip() for w in chosen),
                         word_score=float(np.mean(scores)) if scores else 0.5,
+                        clean_edges=clean_start and clean_end,
                     )
                 )
         i += len(run)
     return found
+
+
+def _boundary(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    """A sentence end or a pause between two consecutive words."""
+    if before["word"].rstrip().endswith((".", "!", "?", ";", ":")):
+        return True
+    return after["start"] - before["end"] >= EDGE_PAUSE
 
 
 def _db(x: np.ndarray) -> float:
@@ -123,6 +138,7 @@ def best_reference(
         (fallback_min_seconds, f"{speaker}: no clean {min_seconds:g}s clip, using a shorter one"),
     ):
         found = candidates(own, min_seconds=minimum, max_seconds=max_seconds, max_gap=max_gap)
+        found = [c for c in found if c.clean_edges] or found
         if found:
             best = max(found, key=lambda c: score(c, vocals, accompaniment, sr, target_seconds))
             return best, warning

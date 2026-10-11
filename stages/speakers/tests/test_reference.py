@@ -74,3 +74,24 @@ def test_short_speech_falls_back_then_gives_up() -> None:
     assert ref is not None and warning and "shorter" in warning
     ref, warning = best_reference([seg(0, 2)], audio, audio * 0, SR, **kwargs)
     assert ref is None and warning and "bank voice" in warning
+
+
+def test_reference_prefers_clean_edges() -> None:
+    # "Unknown or when they" stops mid-phrase; "It is simple." ends a sentence.
+    spans = [
+        ("It", 0.0, 0.4), ("is", 0.5, 0.8), ("simple.", 0.9, 1.6), ("Unknown", 2.0, 2.6),
+        ("or", 2.7, 2.9), ("when", 3.0, 3.3), ("they", 3.35, 3.6), ("do", 3.65, 4.0),
+    ]  # fmt: skip
+    words = [{"word": w, "start": a, "end": b, "score": 0.9} for w, a, b in spans]
+    segs = [{"id": "seg_0001", "start": 0.0, "end": 4.0, "text": "x", "speaker": None,
+             "words": words}]  # fmt: skip
+    found = candidates(segs, min_seconds=1.5, max_seconds=4.0, max_gap=0.5)
+    clean = {c.text for c in found if c.clean_edges}
+    assert "It is simple." in clean
+    assert "Unknown or when they" not in clean  # ends right before "do"
+    audio = np.ones(5 * SR, dtype=np.float32) * 0.1
+    ref, _ = best_reference(
+        segs, audio, audio * 0, SR, speaker="SPK_00", min_seconds=1.5, fallback_min_seconds=1.0,
+        max_seconds=4.0, target_seconds=3.5, max_gap=0.5,
+    )  # fmt: skip
+    assert ref is not None and ref.clean_edges
