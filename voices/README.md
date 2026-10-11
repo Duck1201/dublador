@@ -6,18 +6,17 @@ A tabela abaixo é a fonte de verdade de `stages/synthesize/src/synthesize/voice
 
 | Id | Descrição (voice design) | Seed | F0 |
 |---|---|---|---|
-| `male_01` | male, middle-aged, very low pitch | 11 | 87 Hz |
-| `male_02` | male, elderly, very low pitch | 12 | 122 Hz |
-| `male_03` | male, young adult, very low pitch | 11 | 130 Hz |
-| `male_04` | male, young adult, low pitch | 12 | 150 Hz |
-| `male_05` | male, middle-aged, low pitch | 102 | 165 Hz |
-| `male_06` | male, young adult, moderate pitch | 101 | 179 Hz |
-| `female_01` | female, middle-aged, very low pitch | 11 | 207 Hz |
-| `female_02` | female, middle-aged, low pitch | 204 | 246 Hz |
-| `female_03` | female, young adult, low pitch | 12 | 252 Hz |
-| `female_04` | female, middle-aged, moderate pitch | 202 | 290 Hz |
-| `female_05` | female, young adult, moderate pitch | 201 | 293 Hz |
-| `female_06` | female, young adult, high pitch | 203 | 352 Hz |
+| `male_01` | male, young adult, low pitch | 12 | 150 Hz |
+| `male_02` | male, middle-aged, low pitch | 102 | 165 Hz |
+| `male_03` | male, young adult, moderate pitch | 101 | 179 Hz |
+| `male_04` | male, middle-aged, moderate pitch | 104 | 196 Hz |
+| `female_01` | female, middle-aged, low pitch | 204 | 246 Hz |
+| `female_02` | female, young adult, low pitch | 12 | 252 Hz |
+| `female_03` | female, middle-aged, moderate pitch | 202 | 290 Hz |
+| `female_04` | female, young adult, moderate pitch | 201 | 293 Hz |
+| `female_05` | female, young adult, high pitch | 203 | 352 Hz |
+
+Não há vozes "very low pitch": no A/B do vídeo de referência elas soaram robóticas ([ADR-0021](../docs/adr/0021-banco-sem-vozes-muito-graves.md)).
 
 Frase falada por todas: "Olá, tudo bem? Hoje eu vou explicar uma ideia simples, passo a passo."
 

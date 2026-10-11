@@ -1,6 +1,6 @@
 # ADR-0020 — Vozes nativas do banco por padrão
 
-- **Status:** Aceito (substitui a clonagem como padrão da [ADR-0002](0002-vozes-hibridas.md) e da [ADR-0017](0017-tts-omnivoice-e-referencia-curta.md))
+- **Status:** Aceito, composição do banco ajustada pela [ADR-0021](0021-banco-sem-vozes-muito-graves.md) (substitui a clonagem como padrão da [ADR-0002](0002-vozes-hibridas.md) e da [ADR-0017](0017-tts-omnivoice-e-referencia-curta.md))
 - **Data:** 2026-10-10
 
 ## Contexto

@@ -11,23 +11,20 @@ from pathlib import Path
 
 import numpy as np
 
-# id -> (description for the backend's voice design, seed). Ordered from low to
-# high pitch within each gender, so the speakers stage can match a speaker's
-# pitch (it measures the WAVs itself). Median F0 on the reference machine is in
-# voices/README.md.
+# id -> (description for the backend's voice design, seed), from low to high
+# pitch within each gender; the speakers stage measures the WAVs to match a
+# speaker's pitch. No "very low pitch" designs: they sounded robotic in the
+# reference-video A/B test (ADR-0021). Median F0s are in voices/README.md.
 VOICES: dict[str, tuple[str, int]] = {
-    "male_01": ("male, middle-aged, very low pitch", 11),
-    "male_02": ("male, elderly, very low pitch", 12),
-    "male_03": ("male, young adult, very low pitch", 11),
-    "male_04": ("male, young adult, low pitch", 12),
-    "male_05": ("male, middle-aged, low pitch", 102),
-    "male_06": ("male, young adult, moderate pitch", 101),
-    "female_01": ("female, middle-aged, very low pitch", 11),
-    "female_02": ("female, middle-aged, low pitch", 204),
-    "female_03": ("female, young adult, low pitch", 12),
-    "female_04": ("female, middle-aged, moderate pitch", 202),
-    "female_05": ("female, young adult, moderate pitch", 201),
-    "female_06": ("female, young adult, high pitch", 203),
+    "male_01": ("male, young adult, low pitch", 12),
+    "male_02": ("male, middle-aged, low pitch", 102),
+    "male_03": ("male, young adult, moderate pitch", 101),
+    "male_04": ("male, middle-aged, moderate pitch", 104),
+    "female_01": ("female, middle-aged, low pitch", 204),
+    "female_02": ("female, young adult, low pitch", 12),
+    "female_03": ("female, middle-aged, moderate pitch", 202),
+    "female_04": ("female, young adult, moderate pitch", 201),
+    "female_05": ("female, young adult, high pitch", 203),
 }
 # Short and neutral, like the 3-4.5 s cloning references (ADR-0017).
 TEXT = "Olá, tudo bem? Hoje eu vou explicar uma ideia simples, passo a passo."

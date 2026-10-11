@@ -23,4 +23,5 @@ Decisões de arquitetura do dublador, no formato curto: **contexto → decisão 
 | [0017](0017-tts-omnivoice-e-referencia-curta.md) | TTS padrão: OmniVoice, com referência de clonagem curta (3–4,5 s) | Aceito (clonagem deixa de ser o padrão: 0020) |
 | [0018](0018-ordem-do-time-fit-e-loop.md) | Ordem do ajuste de tempo e loop de encurtamento | Aceito (ajustado por 0019) |
 | [0019](0019-desacelerar-falas-curtas.md) | Desacelerar levemente as falas que ficam curtas (até 0,85×) | Aceito |
-| [0020](0020-vozes-nativas-do-banco-por-padrao.md) | Vozes nativas do banco por padrão, escolhidas pelo tom | Aceito |
+| [0020](0020-vozes-nativas-do-banco-por-padrao.md) | Vozes nativas do banco por padrão, escolhidas pelo tom | Aceito (ajustado por 0021) |
+| [0021](0021-banco-sem-vozes-muito-graves.md) | Banco sem as vozes "very low pitch" (robóticas) | Aceito |
