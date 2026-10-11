@@ -1,6 +1,6 @@
 # ADR-0002 — Vozes híbridas: clonagem + fallback por gênero
 
-- **Status:** Aceito
+- **Status:** Aceito (duração da referência ajustada pela [ADR-0017](0017-tts-omnivoice-e-referencia-curta.md); banco nativo por padrão na [ADR-0020](0020-vozes-nativas-do-banco-por-padrao.md))
 - **Data:** 2026-10-09
 
 ## Contexto

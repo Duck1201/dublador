@@ -56,7 +56,7 @@ ollama_url = "http://localhost:11434"
 # target_reference_seconds = 3.5
 # gender_clips = 5                      # clean clips per speaker for the gender vote
 # min_gender_confidence = 0.3           # below this, a clear median F0 decides, else "unknown"
-# bank_voices_per_gender = 4            # must match the bank in voices/README.md
+# voice_strategy = "bank"               # bank: native pt-BR voice closest in pitch (ADR-0020); clone: each speaker's own English reference
 # max_gap_seconds = 0.5                 # join segments separated by at most this pause
 # reference_lufs = -20.0
 

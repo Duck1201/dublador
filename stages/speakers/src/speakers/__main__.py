@@ -29,9 +29,12 @@ DEFAULTS: dict[str, Any] = {
     "gender_clip_min_seconds": 2.0,
     "gender_clip_max_seconds": 6.0,
     "min_gender_confidence": 0.3,
-    # Must match the bank the synthesize stage builds (voices/README.md).
-    "bank_voices_per_gender": 4,
+    # "bank": every speaker gets the native pt-BR bank voice of its gender closest
+    # in pitch (ADR-0020); "clone": clone each speaker's own English reference,
+    # with the bank only when there is no reference (ADR-0017).
+    "voice_strategy": "bank",
 }
+STRATEGIES = ("bank", "clone")
 PEAK_LIMIT = 10 ** (-1 / 20)  # -1 dBFS
 
 
@@ -40,7 +43,10 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     unknown = sorted(set(section) - set(DEFAULTS))
     if unknown:
         raise StageError(f"unknown [speakers] key(s): {', '.join(unknown)}")
-    return {**DEFAULTS, **section}
+    opts = {**DEFAULTS, **section}
+    if opts["voice_strategy"] not in STRATEGIES:
+        raise StageError(f"speakers.voice_strategy must be one of: {', '.join(STRATEGIES)}")
+    return opts
 
 
 def _mono(path: Path) -> tuple[np.ndarray, int]:
@@ -81,12 +87,16 @@ def run(ctx: StageContext) -> None:
     ctx.progress.log("loading the gender classifier")
     classifier = make_classifier()
     speakers_out = []
+    pitches: dict[str, float | None] = {}
     for i, speaker in enumerate(order, start=1):
         reference = _reference(ctx, opts, segments, vocals, accompaniment, sr, speaker)
-        verdict = _gender(opts, classifier, segments, vocals, accompaniment, sr, speaker)
+        verdict, pitches[speaker] = _gender(
+            opts, classifier, segments, vocals, accompaniment, sr, speaker
+        )
         ctx.progress.log(
             f"{speaker}: {totals[speaker]:.0f}s of speech, {verdict.gender}"
             + (f" ({verdict.confidence:.2f})" if verdict.confidence is not None else "")
+            + (f", {pitches[speaker]:.0f} Hz" if pitches[speaker] else "")
         )
         speakers_out.append(
             {
@@ -94,7 +104,7 @@ def run(ctx: StageContext) -> None:
                 "speech_seconds": round(totals[speaker], 3),
                 "gender": verdict.gender,
                 "gender_confidence": verdict.confidence,
-                "strategy": "clone" if reference else "bank",
+                "strategy": "clone" if reference and opts["voice_strategy"] == "clone" else "bank",
                 "voice": None,
                 "reference": reference,
             }
@@ -104,12 +114,24 @@ def run(ctx: StageContext) -> None:
     needs_bank = sorted(
         (s for s in speakers_out if s["strategy"] == "bank"), key=lambda s: -s["speech_seconds"]
     )
-    voices = bank.assign(
-        [(s["id"], s["gender"]) for s in needs_bank], per_gender=opts["bank_voices_per_gender"]
-    )
-    for spk in needs_bank:
-        spk["voice"] = voices[spk["id"]]
-        ctx.progress.log(f"{spk['id']}: bank voice {spk['voice']}")
+    if needs_bank:
+        models_dir = Path(ctx.config["paths"]["models_dir"])
+        available = bank.scan(models_dir, _wav_pitch)
+        if not available:
+            raise StageError(
+                f"no voice bank in {models_dir / 'voices' / 'pt-BR'};"
+                " run `dublador setup --only synthesize`"
+            )
+        voices = bank.assign(
+            [(s["id"], s["gender"], pitches[s["id"]]) for s in needs_bank], available
+        )
+        pitch_of = {v.id: v.f0 for v in available}
+        for spk in needs_bank:
+            spk["voice"] = voices[spk["id"]]
+            f0 = pitch_of[spk["voice"]]
+            ctx.progress.log(
+                f"{spk['id']}: bank voice {spk['voice']}" + (f" ({f0:.0f} Hz)" if f0 else "")
+            )
     write_json(ctx.out_dir / "speakers.json", {"schema": "speakers/v1", "speakers": speakers_out})
 
 
@@ -146,6 +168,11 @@ def _reference(
     return {"path": rel, "start": round(ref.start, 3), "end": round(ref.end, 3), "text": ref.text}
 
 
+def _wav_pitch(path: Path) -> float | None:
+    audio, sr = _mono(path)
+    return median_f0(audio, sr)
+
+
 def _gender(
     opts: dict[str, Any],
     classifier: Any,
@@ -154,7 +181,7 @@ def _gender(
     accompaniment: np.ndarray,
     sr: int,
     speaker: str,
-) -> Any:
+) -> tuple[Any, float | None]:
     clips = clean_clips(
         segments,
         vocals,
@@ -172,7 +199,7 @@ def _gender(
         for c, a in zip(clips, audio, strict=True)
     ]
     f0 = median_f0(np.concatenate(audio), sr) if audio else None
-    return vote(scored, f0, min_confidence=opts["min_gender_confidence"])
+    return vote(scored, f0, min_confidence=opts["min_gender_confidence"]), f0
 
 
 def prefetch(config: dict[str, Any]) -> None:

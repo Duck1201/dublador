@@ -3,8 +3,7 @@
 Voices are designed from a text description by the TTS backend once, at
 `dublador setup`, and kept in <models_dir>/voices/pt-BR/<gender>/NN.wav with
 the spoken text in NN.txt. They are then cloned like any speaker reference.
-Keep this table in sync with voices/README.md and the speakers stage's
-`bank_voices_per_gender`.
+Keep this table in sync with voices/README.md.
 """
 
 from collections.abc import Callable
@@ -12,16 +11,23 @@ from pathlib import Path
 
 import numpy as np
 
-# id -> (description for the backend's voice design, seed)
+# id -> (description for the backend's voice design, seed). Ordered from low to
+# high pitch within each gender, so the speakers stage can match a speaker's
+# pitch (it measures the WAVs itself). Median F0 on the reference machine is in
+# voices/README.md.
 VOICES: dict[str, tuple[str, int]] = {
-    "male_01": ("male, young adult, moderate pitch", 101),
-    "male_02": ("male, middle-aged, low pitch", 102),
-    "male_03": ("male, young adult, low pitch", 103),
-    "male_04": ("male, middle-aged, moderate pitch", 104),
-    "female_01": ("female, young adult, moderate pitch", 201),
-    "female_02": ("female, middle-aged, moderate pitch", 202),
-    "female_03": ("female, young adult, high pitch", 203),
-    "female_04": ("female, middle-aged, low pitch", 204),
+    "male_01": ("male, middle-aged, very low pitch", 11),
+    "male_02": ("male, elderly, very low pitch", 12),
+    "male_03": ("male, young adult, very low pitch", 11),
+    "male_04": ("male, young adult, low pitch", 12),
+    "male_05": ("male, middle-aged, low pitch", 102),
+    "male_06": ("male, young adult, moderate pitch", 101),
+    "female_01": ("female, middle-aged, very low pitch", 11),
+    "female_02": ("female, middle-aged, low pitch", 204),
+    "female_03": ("female, young adult, low pitch", 12),
+    "female_04": ("female, middle-aged, moderate pitch", 202),
+    "female_05": ("female, young adult, moderate pitch", 201),
+    "female_06": ("female, young adult, high pitch", 203),
 }
 # Short and neutral, like the 3-4.5 s cloning references (ADR-0017).
 TEXT = "Olá, tudo bem? Hoje eu vou explicar uma ideia simples, passo a passo."
