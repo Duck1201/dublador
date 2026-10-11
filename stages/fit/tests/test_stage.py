@@ -60,6 +60,8 @@ def test_strategies_and_stretch(tmp_path: Path, capsys: pytest.CaptureFixture[st
     ]  # fmt: skip
     stretched = soundfile.info(str(job / fit["seg_0003"]["path"])).duration
     assert stretched == pytest.approx(2.85, abs=0.05)
+    slowed = soundfile.info(str(job / fit["seg_0001"]["path"])).duration
+    assert fit["seg_0001"]["ratio"] == 0.85 and slowed == pytest.approx(0.8 / 0.85, abs=0.05)
     over = fit["seg_0004"]
     assert over["ratio"] == 1.6 and over["attempt"] == 1
     assert over["shorten_to"] == 11  # 20 syllables * 2.85 / 5.0

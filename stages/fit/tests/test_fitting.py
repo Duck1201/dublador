@@ -5,7 +5,7 @@ import math
 import pytest
 from fit.fitting import attempt, decide, room, shorten_to
 
-KW = {"max_speedup": 1.25, "max_forced": 1.6}
+KW = {"max_speedup": 1.25, "max_forced": 1.6, "min_speedup": 0.85}
 
 
 def test_room_reaches_the_next_line_minus_the_gap() -> None:
@@ -17,7 +17,9 @@ def test_room_reaches_the_next_line_minus_the_gap() -> None:
 @pytest.mark.parametrize(
     ("natural", "strategy", "ratio"),
     [
-        (0.9, "fits", 1.0),
+        (0.9, "fits", 0.9),  # slowed down to the original length
+        (0.5, "fits", 0.85),  # never slower than min_speedup
+        (1.0, "fits", 1.0),
         (2.5, "silence", 1.0),
         (3.6, "stretch", 1.2),
         (4.5, "overflow", 1.5),

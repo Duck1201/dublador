@@ -33,6 +33,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "max_fit_iterations": 2,
         "gap_seconds": 0.15,
         "max_forced_speedup": 1.6,
+        "min_speedup": 0.85,
     },
     "output": {"format": "mkv"},
     "gpu": {"hsa_override_gfx_version": None},
@@ -86,6 +87,7 @@ class FitConfig:
     max_fit_iterations: int
     gap_seconds: float
     max_forced_speedup: float
+    min_speedup: float
 
 
 @dataclass(frozen=True)
@@ -277,6 +279,9 @@ def _build(
     if isinstance(forced, bool) or not isinstance(forced, int | float) or forced < 1:
         raise ConfigError("fit.max_forced_speedup must be a number of at least 1")
     forced = max(forced, speedup)  # the cap for overflows never undercuts the normal limit
+    slowest = fit["min_speedup"]
+    if isinstance(slowest, bool) or not isinstance(slowest, int | float) or not 0 < slowest <= 1:
+        raise ConfigError("fit.min_speedup must be a number in (0, 1]")
 
     if fmt not in OUTPUT_FORMATS:
         raise ConfigError(f"output.format must be one of: {', '.join(OUTPUT_FORMATS)}")
@@ -294,6 +299,7 @@ def _build(
             max_fit_iterations=iterations,
             gap_seconds=float(gap),
             max_forced_speedup=float(forced),
+            min_speedup=float(slowest),
         ),
         output=OutputConfig(format=fmt),
         gpu=GpuConfig(hsa_override_gfx_version=gfx),

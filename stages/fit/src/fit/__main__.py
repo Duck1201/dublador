@@ -52,6 +52,7 @@ def run(ctx: StageContext) -> None:
     max_speedup = float(fit_cfg.get("max_speedup", 1.25))
     max_forced = max(float(fit_cfg.get("max_forced_speedup", 1.6)), max_speedup)
     gap = float(fit_cfg.get("gap_seconds", 0.15))
+    min_speedup = float(fit_cfg.get("min_speedup", 0.85))
 
     translation = read_json(ctx.stage_dir("translate") / "translation.json", "translation/v1")
     synthesis = read_json(ctx.stage_dir("synthesize") / "synthesis.json", "synthesis/v1")
@@ -71,7 +72,7 @@ def run(ctx: StageContext) -> None:
         available = room(line["start"], line["end"], next_start, gap)
         key = hash_value(
             {"clip": clip["input_hash"], "start": line["start"], "room": available,
-             "params": [max_speedup, max_forced, gap]}
+             "params": [max_speedup, max_forced, gap, min_speedup]}
         )  # fmt: skip
         old = previous.get(seg_id)
         reusable = (
@@ -91,6 +92,7 @@ def run(ctx: StageContext) -> None:
             available,
             max_speedup=max_speedup,
             max_forced=max_forced,
+            min_speedup=min_speedup,
         )
         overflow = decision.strategy == "overflow"
         tries = attempt(old["attempt"] if old else None, overflow)

@@ -1,6 +1,6 @@
 # ADR-0018 — Ordem do ajuste de tempo e loop de encurtamento
 
-- **Status:** Aceito (detalha a [ADR-0004](0004-sincronia-time-fit.md))
+- **Status:** Aceito (detalha a [ADR-0004](0004-sincronia-time-fit.md); ajustado pela [ADR-0019](0019-desacelerar-falas-curtas.md))
 - **Data:** 2026-10-10
 
 ## Contexto

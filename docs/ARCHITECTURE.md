@@ -90,7 +90,7 @@ Gera um WAV por segmento com o TTS: clonagem zero-shot a partir de `refs/<speake
 ### 08 — fit (time-fit)
 Faz cada fala dublada caber na janela da fala original ([ADR-0004](adr/0004-sincronia-time-fit.md), ordem na [ADR-0018](adr/0018-ordem-do-time-fit-e-loop.md)). A fala começa no início da primeira palavra alinhada pelo wav2vec2; a janela vai até o início da próxima fala, de qualquer falante, menos `fit.gap_seconds` (0,15 s).
 
-1. **fits:** o áudio cabe na duração da fala original;
+1. **fits:** o áudio cabe na duração da fala original; se ficou mais curto, é desacelerado com pitch preservado até a duração original, sem passar de `fit.min_speedup` (0,85×; [ADR-0019](adr/0019-desacelerar-falas-curtas.md));
 2. **silence:** cabe usando a pausa até a próxima fala;
 3. **stretch:** time-stretch com pitch preservado (filtro `rubberband` do ffmpeg) até `fit.max_speedup` (1,25×);
 4. **overflow:** acelera até `fit.max_forced_speedup` (1,6×), para o mix sempre ter áudio, emite um aviso e grava a dica para o loop: `shorten_to` (meta de sílabas) no 1º overflow seguido, `target_duration` no 2º.
@@ -213,6 +213,7 @@ max_speedup = 1.25
 max_fit_iterations = 2
 gap_seconds = 0.15
 max_forced_speedup = 1.6
+min_speedup = 0.85
 
 [output]
 format = "mkv"

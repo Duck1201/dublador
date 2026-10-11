@@ -72,6 +72,7 @@ max_speedup = 1.25         # time-stretch limit for a normal fit (pitch kept)
 max_fit_iterations = 2     # shorten-the-translation, then target-duration passes
 # gap_seconds = 0.15       # silence kept before the next line
 # max_forced_speedup = 1.6 # cap for what still overflows after the loop
+# min_speedup = 0.85       # slow short clips down toward the original length (1.0 = off)
 
 [output]
 format = "mkv"                     # mkv | mp4

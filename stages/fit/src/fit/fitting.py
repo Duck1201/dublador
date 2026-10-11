@@ -1,7 +1,9 @@
 """How each dubbed line fits its timing window (pure; ADR-0004, ADR-0018).
 
 Per segment, in order:
-1. fits: the clip is no longer than the original line;
+1. fits: the clip is no longer than the original line; a shorter one is slowed
+   down (pitch kept, never below `min_speedup`) toward the original length, so
+   the dub does not go silent while the person on screen still talks (ADR-0019);
 2. silence: it runs into the pause before the next line (of any speaker), up to
    the next line's start minus a gap;
 3. stretch: sped up (pitch kept) to that room, up to `max_speedup`;
@@ -30,10 +32,16 @@ def room(start: float, end: float, next_start: float | None, gap: float) -> floa
 
 
 def decide(
-    natural: float, own: float, available: float, *, max_speedup: float, max_forced: float
+    natural: float,
+    own: float,
+    available: float,
+    *,
+    max_speedup: float,
+    max_forced: float,
+    min_speedup: float = 1.0,
 ) -> Fit:
     if natural <= own:
-        return Fit("fits", 1.0, available)
+        return Fit("fits", max(natural / own, min_speedup) if own > 0 else 1.0, available)
     if natural <= available:
         return Fit("silence", 1.0, available)
     ratio = natural / available
